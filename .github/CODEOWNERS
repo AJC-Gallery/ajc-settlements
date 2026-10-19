@@ -1,0 +1,9 @@
+# Replace @axce-j with your GitHub handle before the first push.
+# One human owns every path for now (solo-review waiver W-001). Split by team later.
+*                          @axce-j
+/.github/                  @axce-j
+/scripts/                  @axce-j
+/docs/                     @axce-j
+/apps/api/                 @axce-j
+/apps/web/                 @axce-j
+/packages/contracts/       @axce-j
