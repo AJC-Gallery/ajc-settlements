@@ -1,0 +1,24 @@
+name: db-check
+
+# Manual check that the pipeline can reach the database as the migrator role.
+# Run it from the Actions tab (or: gh workflow run db-check). It changes nothing.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Connect as the migrator role
+        env:
+          DATABASE_URL: ${{ secrets.MIGRATOR_DATABASE_URL }}
+          PGCONNECT_TIMEOUT: "60"
+        run: |
+          command -v psql >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }
+          role="$(psql "$DATABASE_URL" -Atc 'select current_user')"
+          echo "connected as: $role"
+          test "$role" = "ajc_migrator"
