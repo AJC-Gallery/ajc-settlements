@@ -1,0 +1,40 @@
+name: release-dev
+
+# After ci passes on main: deploy that exact commit to the dev API, then smoke test it.
+# The migration step is added here, before the deploy, when the backend adds its migrate script.
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-dev
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Ask Render to deploy this commit
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          sep='?'
+          case "$HOOK" in *\?*) sep='&' ;; esac
+          curl -fsS -o /dev/null -X POST "${HOOK}${sep}ref=${SHA}"
+          echo "deploy requested for $SHA"
+      - name: Smoke test
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: bash scripts/smoke.sh "$API_BASE_URL" "$SHA" 600
