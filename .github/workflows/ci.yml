@@ -57,6 +57,10 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
+    env:
+      # Non-secret build-time settings (validated by apps/web/src/config). Same values as dev.
+      API_ORIGIN: https://api-dev.ajc-gallery.com
+      APP_ENV: dev
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable
