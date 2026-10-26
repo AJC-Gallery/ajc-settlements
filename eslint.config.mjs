@@ -33,9 +33,22 @@ export default tseslint.config(
     rules: { "no-restricted-syntax": ["error", { selector: "ExportDefaultDeclaration", message: "No default exports (S-04)." }] },
   },
   {
-    // Next.js requires default exports and fixed file names in app/.
-    files: ["apps/web/src/app/**/{page,layout,loading,error,not-found,template}.tsx", "apps/web/*.config.{ts,mjs}"],
-    rules: { "no-restricted-syntax": "off" },
+    // Next.js requires default exports in its framework files. The process.env ban stays on for them (S-07).
+    files: [
+      "apps/web/src/app/**/{page,layout,loading,error,global-error,not-found,template,default}.tsx",
+      "apps/web/src/app/**/route.ts",
+      "apps/web/src/{middleware,proxy}.ts",
+      "apps/web/*.config.{ts,mjs}",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[object.name='process'][property.name='env']",
+          message: ENV_MESSAGE,
+        },
+      ],
+    },
   },
   {
     files: ["**/*.spec.ts", "**/*.test.ts", "test/**/*.ts"],
