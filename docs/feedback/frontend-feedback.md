@@ -1,6 +1,6 @@
 # Entry F-001
 Date: 2026-10-27 · Phase: 1 · Answers directives D-001 and D-001A · PRs: #6 (merged, web app). Reviewed, not authored: #7 (C-001) and the C-002 branch.
-Status: draft
+Status: ready to send
 
 ## 1. Done since the last entry
 
@@ -76,6 +76,8 @@ Review of record for C-002 · evidence: the five changed or new files as pasted.
 - The dev API sleeps when idle, so the first request through the rewrite can take about a minute. Any smoke test on the web host needs a long first timeout.
 
 ## 8. Owner's notes axce-
-all approved 
-
+- Language: the app will have 2 laguages eng and french
+- I accept the agent's recommendation for sign-in 401 handling (no refresh-retry on the sign-in and refresh endpoints).
+- Lint plugin work waits for the design directive.
+- Proceed with instruction 3.
 -
