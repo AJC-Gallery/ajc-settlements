@@ -14,6 +14,10 @@ concurrency:
 
 env:
   TZ: UTC
+  # Non-secret settings for apps/web (validated by apps/web/src/config). Every job that typechecks
+  # or builds the web app needs them, because `next typegen` loads next.config.ts. Same values as dev.
+  API_ORIGIN: https://api-dev.ajc-gallery.com
+  APP_ENV: dev
 
 jobs:
   static:
@@ -57,10 +61,6 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
-    env:
-      # Non-secret build-time settings (validated by apps/web/src/config). Same values as dev.
-      API_ORIGIN: https://api-dev.ajc-gallery.com
-      APP_ENV: dev
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable
