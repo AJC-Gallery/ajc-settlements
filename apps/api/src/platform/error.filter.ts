@@ -2,8 +2,7 @@ import { ERROR_HTTP_STATUS } from "@ajc/contracts";
 import type { ArgumentsHost, ExceptionFilter } from "@nestjs/common";
 import { toErrorResponse, type ErrorResponse } from "../common/error-body.js";
 import { REQUEST_ID_HEADER } from "../common/request-id.js";
-import { Logger } from "../platform/logger.js";
- 
+import type { Logger } from "./logger.js"; 
 /** `Retry-After` for a 429 when the rate limiter did not set one already, in whole seconds. */
 export const DEFAULT_RETRY_AFTER_SECONDS = 60;
 const RETRY_AFTER_HEADER = "Retry-After";
@@ -22,6 +21,23 @@ export interface ResponseLike {
   json(body: unknown): unknown;
   setHeader(name: string, value: string): unknown;
   getHeader(name: string): unknown;
+}
+
+const SQLSTATE_PATTERN = /^[0-9A-Z]{5}$/;
+
+/** The five-character SQLSTATE of a driver error, when it has one. Never the message. */
+function sqlStateOf(error: Error | undefined): string | undefined {
+  const code = (error as { code?: unknown } | undefined)?.code;
+  return typeof code === "string" && SQLSTATE_PATTERN.test(code) ? code : undefined;
+}
+
+/**
+ * Stack frames only. The first line of a stack is `Name: message`, and a driver message
+ * can carry values, so everything before the first `at ` frame is dropped (ruling 5).
+ */
+function framesOf(error: Error | undefined): string | undefined {
+  const frames = error?.stack?.split("\n").filter((line) => line.trimStart().startsWith("at "));
+  return frames === undefined ? undefined : frames.join("\n");
 }
 
 /** The path without its query string: query strings can carry tokens (P-13). */
@@ -70,9 +86,9 @@ export class ErrorFilter implements ExceptionFilter {
     const cause = exception instanceof Error ? exception : undefined;
     this.logger.error("request failed", {
       ...fields,
-      errorName: cause?.name ?? typeof exception,
-      errorMessage: cause?.message,
-      stack: cause?.stack,
+          errorName: cause?.name ?? typeof exception,
+      sqlState: sqlStateOf(cause),
+      stack: framesOf(cause),
     });
   }
 }

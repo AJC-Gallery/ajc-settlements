@@ -80,8 +80,22 @@ describe("ErrorFilter", () => {
     expect(response.statusCode).toBe(500);
     expect(JSON.stringify(response.payload)).not.toContain("ECONNREFUSED");
     expect(logged()).toMatchObject({ level: "error", code: "INTERNAL_ERROR", requestId: "req_1234-abcd" });
-    expect(logged()["errorMessage"]).toContain("ECONNREFUSED");
+       expect(logged()["errorMessage"]).toBeUndefined();
     expect(logged()["stack"]).toBeDefined();
+  });
+
+  it("leaves no message text in the log when a driver error carries a value", () => {
+    const { filter, host, lines, logged } = setup({ method: "GET", url: "/x", requestId: "req_1234-abcd" });
+    const driverError = Object.assign(new Error("password=hunter2 failed\nsecond line hunter2"), { code: "23505" });
+    filter.catch(driverError, host);
+    expect(lines[0]).not.toContain("hunter2");
+    expect(logged()).toMatchObject({ errorName: "Error", sqlState: "23505", code: "INTERNAL_ERROR" });
+  });
+
+  it("omits sqlState when the code is not a SQLSTATE", () => {
+    const { filter, host, logged } = setup({ method: "GET", url: "/x" });
+    filter.catch(Object.assign(new Error("x"), { code: "ECONNREFUSED" }), host);
+    expect(logged()["sqlState"]).toBeUndefined();
   });
 
   it("keeps the query string out of the log when the url carries a token", () => {
