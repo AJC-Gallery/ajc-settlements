@@ -70,6 +70,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @ajc/web typecheck
+      # The web app loads @ajc/contracts from its compiled output (C-003), so build it first.
+      - run: pnpm --filter @ajc/contracts build
       - run: pnpm --filter @ajc/web build
 
   # Added by later directives, when the code exists to run them:
