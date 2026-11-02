@@ -11,6 +11,9 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # First start only: creates the roles ajc_migrator and ajc_app (see scripts/db/local-init.sh).
+      - ./scripts/db/local-init.sh:/docker-entrypoint-initdb.d/10-local-init.sh:ro
+      - ./scripts/db/bootstrap-roles.sql:/ajc-db/bootstrap-roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d ajc_settlements"]
       interval: 5s
