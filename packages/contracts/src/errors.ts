@@ -1,3 +1,5 @@
+import type { FieldConstraint } from "./constraints.js";
+
 /** One error envelope for the whole API (S-06). The frontend branches on `code`, never on `message`. */
 export const ERROR_CODES = {
   VALIDATION_FAILED: "VALIDATION_FAILED",
@@ -27,7 +29,13 @@ export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
  */
 export interface FieldError {
   readonly field: string;
+  /** English text for logs. Never show it as user copy. */
   readonly messages: readonly string[];
+  /**
+   * Typed reasons, one per failed rule, for the frontend to localise. Optional until the API
+   * fills it (C-004b); a later contract change makes it required.
+   */
+  readonly constraints?: readonly FieldConstraint[];
 }
 
 /** `details` of VALIDATION_FAILED (400). */

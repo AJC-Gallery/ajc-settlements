@@ -12,6 +12,7 @@ export type {
   ValidationFailedBody,
   ValidationFailedDetails,
 } from "./errors.js";
+export type { FieldConstraint, FieldConstraintName } from "./constraints.js";
 export { ERROR_HTTP_STATUS } from "./error-status.js";
 export { DEFAULT_PAGE_SIZE, MAX_PAGE_LIMIT } from "./pagination.js";
 export type { PageQuery, PageResponse } from "./pagination.js";
