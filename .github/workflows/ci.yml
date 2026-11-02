@@ -74,6 +74,42 @@ jobs:
       - run: pnpm --filter @ajc/contracts build
       - run: pnpm --filter @ajc/web build
 
+  # Database tests: a real Postgres 17, the two roles, then every *.int.spec.ts.
+  # Migrations up/down/up and the audit SQL are added here with the migration tooling (D-001 instruction 4).
+  db:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ajc_settlements
+          TZ: UTC
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ajc_settlements"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      # Throwaway values for this job's own service container; not secrets.
+      DATABASE_URL: postgres://ajc_app:ajc_app_ci@localhost:5432/ajc_settlements
+      MIGRATOR_DATABASE_URL: postgres://ajc_migrator:ajc_migrator_ci@localhost:5432/ajc_settlements
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Create the two roles
+        run: |
+          command -v psql >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }
+          psql "postgres://postgres:postgres@localhost:5432/ajc_settlements" \
+            -v ON_ERROR_STOP=1 -v migrator_password=ajc_migrator_ci -v app_password=ajc_app_ci \
+            -f scripts/db/bootstrap-roles.sql
+      - run: pnpm test:db
+
   # Added by later directives, when the code exists to run them:
-  # db (migrations up/down/up, audit SQL, integration + concurrency), e2e, rls,
-  # traceability, release (deploy to dev, smoke test, manual promote).
+  # e2e, rls, traceability, release (deploy to dev, smoke test, manual promote).

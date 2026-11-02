@@ -12,6 +12,9 @@
     "boundaries": "depcruise apps packages --config .dependency-cruiser.cjs",
     "guards": "bash scripts/guards.sh",
     "test": "vitest run --passWithNoTests",
+    "test:db": "vitest run --config vitest.int.config.mts --passWithNoTests",
+    "db:up": "docker compose up -d --wait db",
+    "db:reset": "docker compose down -v && docker compose up -d --wait db",
     "build": "pnpm -r build",
     "verify:fast": "pnpm typecheck && pnpm lint && pnpm boundaries && pnpm guards && pnpm test",
     "verify": "pnpm verify:fast && pnpm build"
