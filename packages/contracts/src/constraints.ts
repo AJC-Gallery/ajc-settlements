@@ -4,8 +4,8 @@
  * Parameters appear only where the sentence needs a number or a list.
  */
 export type FieldConstraint =
-  | { readonly name: "required" }
-  | { readonly name: "unknownField" }
+  /** The value is absent, null, or a blank string. */
+  | { readonly name: "required" }  | { readonly name: "unknownField" }
   | { readonly name: "isString" }
   | { readonly name: "isInt" }
   | { readonly name: "isNumber" }
