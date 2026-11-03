@@ -16,5 +16,6 @@ One line per dependency (S-08): what it is for, licence, and why nothing already
 | class-validator (0.15.1), class-transformer (0.5.1) | apps/api | DTO validation with whitelist and forbidNonWhitelisted (C-02); required peers of @nestjs/common | MIT |
 | reflect-metadata (0.2.2) | apps/api | Metadata that Nest and the validators read; required peer of @nestjs/common | Apache-2.0 |
 | rxjs (7.8.2) | apps/api | Required peer of @nestjs/common | Apache-2.0 |
+| @tanstack/react-query (5.104.2) | apps/web | Server-state cache and query client; the Frontend document keeps server data in TanStack Query only, and the legacy app used it. A release over two weeks old: 5.105.1 was published on 2026-11-01 | MIT |
 
 CSS approach: none yet. D-001A puts design on hold until the owner supplies a new design, so no styling library is chosen.
