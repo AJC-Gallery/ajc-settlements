@@ -1,3 +1,115 @@
+# Entry F-002
+Date: 2026-11-04 · Phase: 1 · Answers directive D-002 · PRs: #18, #19, #20, #21, #22 (web, all merged). Reviewed, not authored: #16 (C-004).
+Status: draft
+
+## 1. Done since the last entry
+
+Instruction report for D-002 (and the D-001 instruction 4 it unblocked):
+
+| Instruction | Report |
+|---|---|
+| D-002 1. App shell, structure only (D-001 instruction 3 as reduced by D-001A) | **Done**, with one defect of mine found and fixed (below). |
+| D-002 2. Typed API client (D-001 instruction 4) | **Done, with one acceptance item not verified**: `pnpm test` on a fresh clone (section 2). |
+| D-002 3. Re-run the web build against the merged C-003 | **Done**, with the caveat in section 2. |
+| D-001 instruction 2 (design) | **Not done, on hold** under D-001A. Nothing built. |
+
+App shell (PR #18, 299 additions, 12 deletions, 17 files · evidence: `gh pr view 18`):
+- Route groups `(public)` and `(app)/worlds/[worldId]`, one navigation configuration (`features/navigation/navigation.ts`) feeding the unstyled navigation list in both layouts, and a placeholder page at `/worlds/[worldId]` that says the area is not built · evidence: build output route table `○ /`, `○ /_not-found`, `ƒ /worlds/[worldId]`.
+- The navigation configuration is the single source of items · evidence: `navigation.spec.ts` (7 tests) includes "does point every item at a page that exists in the app folder" and "does not find a hard-coded internal link when the app and feature files are scanned".
+- Bilingual copy: every text is `{ en, fr }` (`Localised`); a missing language does not compile · evidence: `locales.spec.ts` holds two `@ts-expect-error` lines that make `tsc` fail if a missing or extra language ever compiles, and `pnpm typecheck` passed in every pasted `pnpm verify`; `copy.spec.ts` (10 tests) fails on an empty text and on a copy file missing from its list.
+- `lang` comes from one placeholder constant, `DEFAULT_LOCALE = "en"`, in `copy/locales.ts`; nothing decides how the language appears in the URL (section 3).
+- No fixtures were created: the shell shows nothing that has a contract type, and D-001 forbids inventing one.
+- Checks on PR #18 · evidence: `gh pr checks 18` printed five successes: boundaries, db, static, unit, web. A fresh clone of the branch ran `pnpm verify` green (typecheck, eslint, boundaries, guards, 155 tests, build).
+- Rendered markup on main after the merge · evidence: `curl -sS http://localhost:3000/` printed `<html lang="en">`, a header with `<nav aria-label="Main navigation">` and one Home link, and a `<main>` with the heading and intro text.
+
+Defect I introduced, found and fixed (PR #19, 21 insertions · evidence: the pasted markup and `pnpm verify` below):
+- The same `curl` for `/worlds/00000000-0000-0000-0000-000000000000` printed two headers (Home, then Overview) and a `<main>` inside a `<main>`: the world page was inside the public layout. The `worlds` folder had been placed under `(public)` instead of `(app)`. My route test stripped group names, so nothing caught it.
+- Fix: the folder moved to `(app)/worlds` and `route-groups.spec.ts` (2 tests) now fails when a world page sits outside the `(app)` group · evidence: on the fix branch `pnpm verify` passed with `route-groups.spec.ts (2 tests)`, and `curl` printed one header with only the Overview link and one `<main>`.
+
+Web build against the merged C-003 (D-002 instruction 3) · evidence: on main at c9da5ea, `pnpm --filter @ajc/contracts build` ran `tsc -p tsconfig.build.json`, then `pnpm --filter @ajc/web build` compiled, finished TypeScript, and listed the same three routes, with the web `build` script unchanged.
+
+Typed API client, in three parts (PR #20: 313 additions including the lockfile, 11 files; PR #21: 247 additions, 2 files; PR #22: 353 additions · evidence: `gh pr view 20`, `gh pr view 21`, and the owner's report for #22). All five web PRs are under the S-10 limit of 400, counting the lockfile.
+- Files in `apps/web/src/lib/`: `api.ts` (one typed fetch wrapper), `api-error.ts`, `error-envelope.ts`, `idempotency.ts`, `query-keys.ts`, `query-client.ts`, and `fake-fetch.ts` (test support, imported by no app file). No component calls `fetch`, and no request or response type is declared by hand.
+- A full local gate on main after the three merges · evidence: `pnpm verify` printed typecheck for contracts, api and web, `eslint .` with no output, "no dependency violations found (79 modules, 101 dependencies cruised)", "guards: ok", 22 test files with 272 tests passing, and builds of contracts, api and web.
+- Web tests added for the client: `idempotency.spec.ts` (15), `error-envelope.spec.ts` (30), `api.spec.ts` (25), `query-keys.spec.ts` (4), `query-client.spec.ts` (8). They import contract constants from `@ajc/contracts` and passed · evidence: the test lists in the `pnpm verify` output above.
+- Error table, each row with a named test:
+  - 400: field errors with their constraints.
+  - 401: one refresh and one retry; a second 401 is final; a refused refresh does not retry; paths in `noRefreshPaths` never refresh; no refresh function means a 401 is final; two simultaneous 401s call the refresh once.
+  - 403: the permission named.
+  - 404: the same failure whatever the message.
+  - 409: each of the six codes kept.
+  - 429: `Retry-After` read as whole seconds, anything else is null.
+  - 5xx: a failure with the same idempotency key on the retry.
+  - network: a failure; an abort is rethrown unchanged.
+- Idempotency lifecycle · evidence: tests "does return the same key when the same input is submitted again", "does return a new key when the input was edited", "does return a new key when the last submit succeeded".
+- Fixture that fails to compile when a contract type changes: `api.spec.ts` types a response with `satisfies PageResponse<...>`, and `plainFailure` in `error-envelope.ts` has no default branch, so a new error code fails to compile until it is mapped.
+- The 401 refresh is a function the client is given, not a call to an endpoint, because the auth contract does not exist yet. No sign-in or refresh code was written, as D-002 requires.
+- Query keys are scoped by world (`["worlds", worldId, scope, ...]`) so one world's cache can never be served for another · evidence: `query-keys.spec.ts` "does give different keys when the world differs".
+- TanStack Query is pinned to 5.104.2; 5.105.1 was published on 2026-11-01, so I chose a release 22 days old · evidence: the `DEPENDENCIES.md` row and `gh pr view 20`.
+
+Review of record for C-004 (PR #16, `constraints.ts`, `errors.ts`, `index.ts`) · evidence: `gh pr diff 16` as pasted by the owner.
+- Accepted as written. The constraint set is enough for sign-in, sign-up and creating a world, and fits the asset form (`isOneOf`, `isInt` with `min` and `max`, `arrayMaxSize`).
+- `invalid` is an acceptable generic fallback; the UI shows a generic localised text for it, never the English `messages`. `messages` stays for logs; removal is decided later by expand, deploy, contract (S-11). `constraints` optional now and required later is acceptable.
+- Conditions on the later change that makes `constraints` required: an end-to-end test that every field in a VALIDATION_FAILED response has at least one constraint, and a non-empty tuple type.
+- Notes for the backend, none blocking: say whether a blank string is `required` or `minLength` (my recommendation: `required` covers absent, null and blank); name the constraints for upload errors before the asset form; log every `invalid` emitted; a phone-format name is additive and not needed yet.
+- The web side will pick one constraint per field by fixed priority, map names with an exhaustive record plus a runtime fallback for unknown names, and add a test that no web file reads `.messages` outside logging.
+
+Dev API health, closed · evidence: `curl -sS -i https://api-dev.ajc-gallery.com/health/live` returned `200` with `{"status":"ok","commit":"85abf40b3762a84684caf394135abf77fd0073f0"}`; `/api/v1/health/live` returned `404` with `{"code":"NOT_FOUND"}`. The Render settings page shows Health Check Path `/health/live`. Health is at the root, so the `/api` rewrite cannot reach it; the browser never calls health, and the web smoke test requests `/` (D-002).
+
+Owner decision recorded (D-002 section 7): the product is bilingual, English and French.
+
+## 2. Not verified
+
+- **`pnpm test` on a fresh clone with no prior build (D-002 acceptance).** The owner's clone failed ("Could not resolve host: github.com"), and the commands after it ran in the existing repository with build outputs present. The 272 tests passing there do not prove the acceptance. A check that removes the build outputs, and a real fresh clone, are pending.
+- **The rewrite through `dev.ajc-gallery.com`.** The Vercel project does not exist yet. The proof so far ran through localhost (F-001).
+- **Next resolving the compiled contracts in the web bundle.** No page imports `@ajc/contracts` at runtime, so the web build cannot show it. The client tests import it through the test alias, which is a different mechanism. This proof arrives with the first screen that uses the client.
+- **Check results for PRs #19, #20, #21 and #22.** The owner reported them green; the output was not pasted. Only #18's checks were pasted. The local `pnpm verify` before each commit was not pasted either; the run on main after all merges covers the combined state.
+- **Sandbox-only evidence (Node 22, contract files rebuilt from the C-002 and C-004 text; not run on the owner's machine):** a missing French text failing with TS2741; a made-up error code failing with TS2366 in `error-envelope.ts`; the route-group test failing in the wrong layout; three mutation checks on `api.ts` (unshared refresh, no credentials, refresh on a never-refresh path), each failing exactly one test.
+- **The client against the real API.** The dev API still returns the Phase 0 body, `{"code":"NOT_FOUND"}` with no `requestId`, on 2026-11-04, so the envelope mapping has only been tested against fixtures. `Retry-After` on a 429 is likewise untested against the API.
+- **Any browser behaviour:** the navigation was checked with `curl`, not in a browser; `crypto.randomUUID` needs a secure context (https or localhost); no keyboard or screen-reader check; no Core Web Vitals or bundle size; no narrow or wide viewport check, because there is no layout styling (D-001A).
+- **French wording.** The French texts are mine and provisional, not reviewed by a French speaker. Decision 5 (Assets or Settlements, Tenant or Client) is still open.
+- **TanStack Query behaviour in a component:** only the options are unit-tested; no provider is mounted.
+
+## 3. Blocked or decision needed
+
+- **How the language appears in the URL** · options: (A) a `/en` and `/fr` prefix on every route: links are shareable and indexable per language, but every path in the Frontend document gains a segment, `/` needs a redirect, and navigation links gain the prefix; (B) no prefix, with the language from a cookie, then the browser's language, and a switch: URLs stay as documented, but a public page has one URL in two languages (poor for search), and reading the cookie or header makes pages render on demand, so `/` loses static prerendering; (C) hybrid: public pages prefixed `/en` and `/fr`, signed-in screens unprefixed with the language from the person's saved preference (a cookie until that exists). · my recommendation: C, because the public pages are the ones that must be found in both languages, while signed-in screens are shared by link between owners who may prefer different languages. C needs a language preference on the person (a backend contract change) and moves `<html lang>` out of the single root layout into each route group. Navigation links already come from functions, so adding a public prefix is a one-place change. Until decided, `DEFAULT_LOCALE` stays a placeholder.
+- **"5xx retried with the same key" (D-001 acceptance) against "offer retry" (Frontend document)** · options: (A) the wrapper makes one request per call, a retry is offered to the person and reuses the same idempotency key, and reads are retried at most twice by the query client; (B) the wrapper also retries writes by itself, with the same key. · my recommendation: A, because it matches the Frontend document and a hidden repeated write is harder to explain to the person. I implemented A; please confirm or rule.
+- **Lint plugin for Next (deferred by D-002; recommendation unchanged)** · options: (A) `@next/eslint-plugin-next` plus `eslint-plugin-react-hooks`, with `no-html-link-for-pages` pointed at `app`; (B) `eslint-config-next`. · my recommendation: A, because the bundled plugins of B declare ESLint peers up to 9 only.
+
+## 4. Proposed contract changes
+
+- C-004 accepted as written (additive).
+- Carried forward, all additive: a `Permission` name union once the permission list exists; the sign-in and refresh path constants from D-002 (the `noRefreshPaths` list will read them); a default page size per list if one ever differs from `DEFAULT_PAGE_SIZE`; the later change that makes `constraints` required (conditions in section 1).
+
+## 5. Needs from the other agent
+
+- The real error envelope for unknown routes: the dev API's 404 still has no `message`, `details` or `requestId` (D-002 says this is expected until the backend's instruction 2). Observed again on 2026-11-04 at commit 85abf40.
+- The auth contract: sign-in, sign-up and refresh endpoints with request and response types, the path constants, and the status of a failed refresh. The client's refresh function and `noRefreshPaths` wait for it.
+- Confirmation, with an end-to-end test, that every 429 sends `Retry-After` in whole seconds.
+- Constraint names for upload errors (count, size, type), before the asset form.
+- From the deployment owner: the Vercel project, its two variables and the dev domain steps, which D-002 section 6 says follow the merge of the shell. The shell is merged, so these are now due; gate G1-F cannot close without them.
+
+## 6. Rule conflicts and waiver requests
+
+- None.
+
+## 7. Risks noticed
+
+- My own errors this period: I placed the world folder under the wrong group in the shell instructions' result and my route test could not see it (fixed in #19 with a guard); my first part 1 script printed "created 7 files" without checking that the folder existed, after `git rm` had emptied it, so nothing was written (the later script verifies each file); my first command list in F-001 started from the wrong branch. Likelihood of similar slips is lower now that scripts verify their own result.
+- The client has no request timeout, so a hung request waits for the browser's default. Adding `AbortSignal.timeout` belongs with the first screens. Likelihood: certain on a sleeping host.
+- The idempotency fingerprint does not support files or blobs. The asset form with images (up to three, 5 MB) needs a different fingerprint, such as name, size and last-modified time. It is a known limit, noted in the code.
+- Successful responses are trusted to match the contract type and are not validated at runtime. If the API drifts from the contract, the failure shows up in the screen, not at the boundary.
+- `fake-fetch.ts` is test support but lives in `lib/` next to production files. Nothing imports it; it can move to a test folder when one exists.
+- The dev API sleeps when idle, so the first request can take about a minute, though the two calls on 2026-11-04 answered in about a second. Any smoke test on the web host needs a long first timeout.
+- The owner's network is unreliable: installs showed many registry timeouts and the last clone failed on DNS. This slows every fresh-clone check.
+- `<html lang="en">` is a placeholder until the URL decision.
+
+## 8. Owner's notes (written by you)
+
+- 
+
+---
+
 # Entry F-001
 Date: 2026-10-27 · Phase: 1 · Answers directives D-001 and D-001A · PRs: #6 (merged, web app). Reviewed, not authored: #7 (C-001) and the C-002 branch.
 Status: ready to send
@@ -79,5 +191,9 @@ Review of record for C-002 · evidence: the five changed or new files as pasted.
 - Language: the app will have 2 laguages eng and french
 - I accept the agent's recommendation for sign-in 401 handling (no refresh-retry on the sign-in and refresh endpoints).
 - Lint plugin work waits for the design directive.
-- Proceed with instruction 3.
+- 5xx retry: I accept option A (one request per call; a retry is offered and reuses the same key; the query client retries reads at most twice).
+- Language in the URL: leave to the controlling agent.
+- Lint plugin for Next: stays deferred until the design directive.
+- Note: the Render Health Check Path has been changed to /api/v1/health/live since this entry was drafted, and the dev API now serves /api/v1/health/live (backend 2b-1, live on dev).
+- Fresh-clone check: result pasted to the frontend chat separately..
 -
