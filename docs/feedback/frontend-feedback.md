@@ -1,6 +1,6 @@
 # Entry F-002
 Date: 2026-11-04 · Phase: 1 · Answers directive D-002 · PRs: #18, #19, #20, #21, #22 (web, all merged). Reviewed, not authored: #16 (C-004).
-Status: draft
+Status: ready to send
 
 ## 1. Done since the last entry
 
@@ -9,7 +9,7 @@ Instruction report for D-002 (and the D-001 instruction 4 it unblocked):
 | Instruction | Report |
 |---|---|
 | D-002 1. App shell, structure only (D-001 instruction 3 as reduced by D-001A) | **Done**, with one defect of mine found and fixed (below). |
-| D-002 2. Typed API client (D-001 instruction 4) | **Done, with one acceptance item not verified**: `pnpm test` on a fresh clone (section 2). |
+| D-002 2. Typed API client (D-001 instruction 4) | **Done, with one acceptance item partly verified**: `pnpm test` passes with all build outputs removed; a real fresh clone is pending (section 2). |
 | D-002 3. Re-run the web build against the merged C-003 | **Done**, with the caveat in section 2. |
 | D-001 instruction 2 (design) | **Not done, on hold** under D-001A. Nothing built. |
 
@@ -31,6 +31,7 @@ Web build against the merged C-003 (D-002 instruction 3) · evidence: on main at
 Typed API client, in three parts (PR #20: 313 additions including the lockfile, 11 files; PR #21: 247 additions, 2 files; PR #22: 353 additions · evidence: `gh pr view 20`, `gh pr view 21`, and the owner's report for #22). All five web PRs are under the S-10 limit of 400, counting the lockfile.
 - Files in `apps/web/src/lib/`: `api.ts` (one typed fetch wrapper), `api-error.ts`, `error-envelope.ts`, `idempotency.ts`, `query-keys.ts`, `query-client.ts`, and `fake-fetch.ts` (test support, imported by no app file). No component calls `fetch`, and no request or response type is declared by hand.
 - A full local gate on main after the three merges · evidence: `pnpm verify` printed typecheck for contracts, api and web, `eslint .` with no output, "no dependency violations found (79 modules, 101 dependencies cruised)", "guards: ok", 22 test files with 272 tests passing, and builds of contracts, api and web.
+- `pnpm test` with no build outputs, the substitute for the fresh-clone acceptance · evidence: on main at 3a44ca1, after `rm -rf packages/contracts/dist apps/api/dist apps/web/.next apps/web/next-env.d.ts` and an `ls` showing none of them, `pnpm test` printed 22 test files and 272 tests passing.
 - Web tests added for the client: `idempotency.spec.ts` (15), `error-envelope.spec.ts` (30), `api.spec.ts` (25), `query-keys.spec.ts` (4), `query-client.spec.ts` (8). They import contract constants from `@ajc/contracts` and passed · evidence: the test lists in the `pnpm verify` output above.
 - Error table, each row with a named test:
   - 400: field errors with their constraints.
@@ -60,7 +61,7 @@ Owner decision recorded (D-002 section 7): the product is bilingual, English and
 
 ## 2. Not verified
 
-- **`pnpm test` on a fresh clone with no prior build (D-002 acceptance).** The owner's clone failed ("Could not resolve host: github.com"), and the commands after it ran in the existing repository with build outputs present. The 272 tests passing there do not prove the acceptance. A check that removes the build outputs, and a real fresh clone, are pending.
+- **`pnpm test` on a real fresh clone (D-002 acceptance).** The owner's clone failed ("Could not resolve host: github.com"), and the commands after it ran in the existing repository, so that run proves nothing about a clean checkout. The substitute check in section 1 removes every build output and still passes, but `node_modules`, `.env.local` and other git-ignored files were present. A real clone is pending until GitHub is reachable.
 - **The rewrite through `dev.ajc-gallery.com`.** The Vercel project does not exist yet. The proof so far ran through localhost (F-001).
 - **Next resolving the compiled contracts in the web bundle.** No page imports `@ajc/contracts` at runtime, so the web build cannot show it. The client tests import it through the test alias, which is a different mechanism. This proof arrives with the first screen that uses the client.
 - **Check results for PRs #19, #20, #21 and #22.** The owner reported them green; the output was not pasted. Only #18's checks were pasted. The local `pnpm verify` before each commit was not pasted either; the run on main after all merges covers the combined state.
@@ -106,7 +107,11 @@ Owner decision recorded (D-002 section 7): the product is bilingual, English and
 
 ## 8. Owner's notes (written by you)
 
-- 
+- 5xx retry: I accept option A (one request per call; a retry is offered and reuses the same key; the query client retries reads at most twice).
+- Language in the URL: decided by the controlling agent in the next directive.
+- Lint plugin for Next: stays deferred until the design directive.
+- Update since this entry was drafted: the Render Health Check Path is now /api/v1/health/live and the dev API serves /api/v1/health/live (backend 2b-1 and 2b-2, live on dev).
+- Fresh-clone check: the substitute check passed; the real clone waits for GitHub to be reachable.
 
 ---
 
