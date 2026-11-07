@@ -2,15 +2,16 @@ import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import * as home from "./home";
+import * as languageSwitch from "./language-switch";
 import { LOCALES, type Localised } from "./locales";
 import * as navigation from "./navigation";
 import * as overview from "./overview";
 import * as site from "./site";
 
 // Add a new copy file here. The last test fails when one is missing.
-const COPY_MODULES: Readonly<Record<string, object>> = { home, navigation, overview, site };
+const COPY_MODULES: Readonly<Record<string, object>> = { home, "language-switch": languageSwitch, navigation, overview, site };
 
-const NOT_COPY_FILES: readonly string[] = ["locales"];
+const NOT_COPY_FILES: readonly string[] = ["language", "locales"];
 
 function textsOf(): readonly (readonly [string, Localised])[] {
   return Object.entries(COPY_MODULES).flatMap(([moduleName, exports]) =>
