@@ -21,10 +21,12 @@ function existingRoutes(): readonly string[] {
 }
 
 function routeOf(item: NavigationItem): string {
-  return item.href.replace(`/${SAMPLE_WORLD_ID}`, "/[worldId]");
+  const language = new RegExp(`^/(?:${LOCALES.join("|")})(?=/|$)`);
+  return item.href.replace(language, "/[locale]").replace(`/${SAMPLE_WORLD_ID}`, "/[worldId]");
 }
 
-const ALL_ITEMS: readonly NavigationItem[] = [...publicNavigation(), ...worldNavigation(SAMPLE_WORLD_ID)];
+const PUBLIC_ITEMS: readonly NavigationItem[] = LOCALES.flatMap((locale) => publicNavigation(locale));
+const ALL_ITEMS: readonly NavigationItem[] = [...PUBLIC_ITEMS, ...worldNavigation(SAMPLE_WORLD_ID)];
 
 describe("navigation configuration", () => {
   it("does give every item an id, both languages and an internal link", () => {
@@ -36,8 +38,20 @@ describe("navigation configuration", () => {
   });
 
   it("does not repeat an id within one area", () => {
-    for (const items of [publicNavigation(), worldNavigation(SAMPLE_WORLD_ID)]) {
+    for (const items of [publicNavigation("en"), worldNavigation(SAMPLE_WORLD_ID)]) {
       expect(new Set(items.map((item) => item.id)).size).toBe(items.length);
+    }
+  });
+
+  it.each(LOCALES)("does start every public link with the language prefix when the language is %s", (locale) => {
+    const hrefs = publicNavigation(locale).map((item) => item.href);
+    expect(hrefs.length).toBeGreaterThan(0);
+    expect(hrefs.every((href) => href === `/${locale}` || href.startsWith(`/${locale}/`))).toBe(true);
+  });
+
+  it("does not put a language prefix on a signed-in link", () => {
+    for (const item of worldNavigation(SAMPLE_WORLD_ID)) {
+      expect(LOCALES.some((locale) => item.href === `/${locale}` || item.href.startsWith(`/${locale}/`))).toBe(false);
     }
   });
 
@@ -53,7 +67,7 @@ describe("navigation configuration", () => {
 
   it("does return the same items in the same order when asked again for one area", () => {
     expect(worldNavigation(SAMPLE_WORLD_ID)).toEqual(worldNavigation(SAMPLE_WORLD_ID));
-    expect(publicNavigation()).toEqual(publicNavigation());
+    expect(publicNavigation("fr")).toEqual(publicNavigation("fr"));
   });
 
   it("does point every item at a page that exists in the app folder", () => {

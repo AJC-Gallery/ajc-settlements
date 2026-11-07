@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { DEFAULT_LOCALE } from "../../../../copy/locales";
 import { NAVIGATION_COPY } from "../../../../copy/navigation";
+import { getRequestLanguage } from "../../../../features/language";
 import { NavigationList, worldNavigation } from "../../../../features/navigation";
 
 interface WorldLayoutProps {
@@ -10,11 +10,11 @@ interface WorldLayoutProps {
 
 // No data is fetched here yet. The API is the only authority on who may see a world (Frontend document, routes).
 export default async function WorldLayout({ children, params }: WorldLayoutProps) {
-  const { worldId } = await params;
+  const [{ worldId }, locale] = await Promise.all([params, getRequestLanguage()]);
   return (
     <>
       <header>
-        <NavigationList items={worldNavigation(worldId)} landmark={NAVIGATION_COPY.landmark} locale={DEFAULT_LOCALE} />
+        <NavigationList items={worldNavigation(worldId)} landmark={NAVIGATION_COPY.landmark} locale={locale} />
       </header>
       <main>{children}</main>
     </>
