@@ -48,7 +48,7 @@ function setup(request: RequestLike) {
 
 describe("ErrorFilter", () => {
   it("writes the status, the envelope and the request id header", () => {
-    const { filter, response, host } = setup({ method: "GET", url: "/x", requestId: "req_1234-abcd" });
+    const { filter, response, host } = setup({ method: "GET", requestId: "req_1234-abcd" });
     filter.catch(new ApiError("NOT_FOUND", "No such record"), host);
     expect(response.statusCode).toBe(404);
     expect(response.payload).toEqual({
@@ -61,21 +61,20 @@ describe("ErrorFilter", () => {
   });
 
   it("makes a request id when the request has none", () => {
-    const { filter, response, host } = setup({ method: "GET", url: "/x" });
+    const { filter, response, host } = setup({ method: "GET" });
     filter.catch(new ApiError("NOT_FOUND", "m"), host);
     expect(response.payload).toMatchObject({ requestId: "generated-id-1" });
   });
 
   it("logs a rejected request at info level without a stack", () => {
-    const { filter, host, lines, logged } = setup({ method: "POST", url: "/assets", requestId: "req_1234-abcd" });
-    filter.catch(new ApiError("CONFLICT", "m"), host);
+    const { filter, host, lines, logged } = setup({ method: "POST", route: { path: "/assets" }, requestId: "req_1234-abcd" });    filter.catch(new ApiError("CONFLICT", "m"), host);
     expect(lines).toHaveLength(1);
     expect(logged()).toMatchObject({ level: "info", code: "CONFLICT", status: 409, method: "POST", route: "/assets" });
     expect(logged()["stack"]).toBeUndefined();
   });
 
   it("hides a server fault from the client and logs it with its stack", () => {
-    const { filter, response, host, logged } = setup({ method: "GET", url: "/x", requestId: "req_1234-abcd" });
+    const { filter, response, host, logged } = setup({ method: "GET", requestId: "req_1234-abcd" });
     filter.catch(new Error("connect ECONNREFUSED 10.0.0.5:5432"), host);
     expect(response.statusCode).toBe(500);
     expect(JSON.stringify(response.payload)).not.toContain("ECONNREFUSED");
@@ -85,7 +84,7 @@ describe("ErrorFilter", () => {
   });
 
   it("leaves no message text in the log when a driver error carries a value", () => {
-    const { filter, host, lines, logged } = setup({ method: "GET", url: "/x", requestId: "req_1234-abcd" });
+    const { filter, host, lines, logged } = setup({ method: "GET", requestId: "req_1234-abcd" });
     const driverError = Object.assign(new Error("password=hunter2 failed\nsecond line hunter2"), { code: "23505" });
     filter.catch(driverError, host);
     expect(lines[0]).not.toContain("hunter2");
@@ -93,34 +92,46 @@ describe("ErrorFilter", () => {
   });
 
   it("omits sqlState when the code is not a SQLSTATE", () => {
-    const { filter, host, logged } = setup({ method: "GET", url: "/x" });
+    const { filter, host, logged } = setup({ method: "GET" });
     filter.catch(Object.assign(new Error("x"), { code: "ECONNREFUSED" }), host);
     expect(logged()["sqlState"]).toBeUndefined();
   });
 
-  it("keeps the query string out of the log when the url carries a token", () => {
-    const { filter, host, lines, logged } = setup({ method: "POST", url: "/auth/recovery/confirm?token=tok-secret-value" });
+  it("logs the matched pattern and no query string or path value", () => {
+    const request = {
+      method: "POST",
+      route: { path: "/api/v1/auth/recovery/:code" },
+      url: "/api/v1/auth/recovery/sentinel-8841?token=sentinel-8841",
+      originalUrl: "/api/v1/auth/recovery/sentinel-8841?token=sentinel-8841",
+    } as RequestLike;
+    const { filter, host, lines, logged } = setup(request);
     filter.catch(new ApiError("VALIDATION_FAILED", "m", { fields: [] }), host);
-    expect(logged()["route"]).toBe("/auth/recovery/confirm");
-    expect(lines[0]).not.toContain("tok-secret-value");
+    expect(logged()["route"]).toBe("/api/v1/auth/recovery/:code");
+    expect(lines[0]).not.toContain("sentinel-8841");
+  });
+
+  it("logs unmatched when no route matched", () => {
+    const { filter, host, logged } = setup({ method: "GET" });
+    filter.catch(new ApiError("NOT_FOUND", "m"), host);
+    expect(logged()["route"]).toBe("unmatched");
   });
 
   it("sets a default Retry-After when a 429 has none", () => {
-    const { filter, response, host } = setup({ method: "GET", url: "/x" });
+    const { filter, response, host } = setup({ method: "GET" });
     filter.catch(new ApiError("RATE_LIMITED", "m"), host);
     expect(response.statusCode).toBe(429);
     expect(response.getHeader("retry-after")).toBe(String(DEFAULT_RETRY_AFTER_SECONDS));
   });
 
   it("keeps the Retry-After the rate limiter already set", () => {
-    const { filter, response, host } = setup({ method: "GET", url: "/x" });
+    const { filter, response, host } = setup({ method: "GET" });
     response.setHeader("Retry-After", "7");
     filter.catch(new ApiError("RATE_LIMITED", "m"), host);
     expect(response.getHeader("retry-after")).toBe("7");
   });
 
   it("logs but does not write when the headers were already sent", () => {
-    const { filter, response, host, lines } = setup({ method: "GET", url: "/x" });
+    const { filter, response, host, lines } = setup({ method: "GET" });
     response.headersSent = true;
     filter.catch(new Error("late"), host);
     expect(response.statusCode).toBe(0);

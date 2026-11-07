@@ -2,18 +2,18 @@ import { ERROR_HTTP_STATUS } from "@ajc/contracts";
 import type { ArgumentsHost, ExceptionFilter } from "@nestjs/common";
 import { toErrorResponse, type ErrorResponse } from "../common/error-body.js";
 import { REQUEST_ID_HEADER } from "../common/request-id.js";
-import type { Logger } from "./logger.js"; 
+import type { Logger } from "./logger.js";
+import { routeLabelOf, type RouteRequestLike } from "./route-label.js";
+
 /** `Retry-After` for a 429 when the rate limiter did not set one already, in whole seconds. */
 export const DEFAULT_RETRY_AFTER_SECONDS = 60;
 const RETRY_AFTER_HEADER = "Retry-After";
 
 /** The few request members the filter reads. `requestId` is set by the request-id middleware (2b). */
-export interface RequestLike {
+export interface RequestLike extends RouteRequestLike {
   readonly method?: string;
-  readonly url?: string;
   readonly requestId?: string;
 }
-
 /** The few response members the filter uses, so it does not depend on the HTTP platform's types. */
 export interface ResponseLike {
   readonly headersSent?: boolean;
@@ -40,8 +40,6 @@ function framesOf(error: Error | undefined): string | undefined {
   return frames === undefined ? undefined : frames.join("\n");
 }
 
-/** The path without its query string: query strings can carry tokens (P-13). */
-const pathOf = (url: string | undefined): string => (url ?? "").split("?")[0] ?? "";
 
 /**
  * The one exception filter (C-11): every failure becomes the contract envelope with the
@@ -77,8 +75,8 @@ export class ErrorFilter implements ExceptionFilter {
       code: result.body.code,
       status: result.status,
       method: request.method,
-      route: pathOf(request.url),
-    };
+      route: routeLabelOf(request),
+	    };
     if (!result.isUnexpected) {
       this.logger.info("request rejected", fields);
       return;
@@ -86,8 +84,8 @@ export class ErrorFilter implements ExceptionFilter {
     const cause = exception instanceof Error ? exception : undefined;
     this.logger.error("request failed", {
       ...fields,
-          errorName: cause?.name ?? typeof exception,
-      sqlState: sqlStateOf(cause),
+      errorName: cause?.name ?? typeof exception,
+	        sqlState: sqlStateOf(cause),
       stack: framesOf(cause),
     });
   }
