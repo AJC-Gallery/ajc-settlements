@@ -10,6 +10,7 @@ describe("routeLabelOf", () => {
     ["no route", {}],
     ["an empty path", { route: { path: "" } }],
     ["a non-string path", { route: { path: /x/ } }],
+	    ["a catch-all wildcard", { route: { path: "*path" } }],
     ["no path", { route: {} }],
   ])("answers unmatched when there is %s", (_label, request) => {
     expect(routeLabelOf(request)).toBe("unmatched");
