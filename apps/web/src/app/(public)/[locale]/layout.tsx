@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { isLocale, LOCALES, pickText } from "../../../copy/locales";
 import { NAVIGATION_COPY } from "../../../copy/navigation";
 import { SITE_COPY } from "../../../copy/site";
+import { LanguageSwitch } from "../../../features/language";
 import { NavigationList, publicNavigation } from "../../../features/navigation";
 
 interface PublicLayoutProps {
@@ -32,6 +33,7 @@ export default async function PublicLayout({ children, params }: PublicLayoutPro
       <body>
         <header>
           <NavigationList items={publicNavigation(locale)} landmark={NAVIGATION_COPY.landmark} locale={locale} />
+          <LanguageSwitch current={locale} />
         </header>
         <main>{children}</main>
       </body>
