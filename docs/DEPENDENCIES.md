@@ -19,6 +19,8 @@ One line per dependency (S-08): what it is for, licence, and why nothing already
 | @nestjs/core, @nestjs/platform-express (12.3.2) | apps/api | The Nest runtime and its Express HTTP adapter, versions matched to @nestjs/common. Node 20 or later | MIT |
 | helmet (8.3.0) | apps/api | Security headers before the first deploy (P-07). Published 2026-07-12, past the release-age check | MIT |
 | @nestjs/throttler (6.7.1) | apps/api | Global rate limiter and per-route limits (P-07, D-003). Published 2026-09-24, past the release-age check. In-memory store: per instance, resets on restart | MIT |
+| pg (8.23.1) | apps/api | PostgreSQL driver under TypeORM. Published 2026-09-30, past the release-age check | MIT |
+| typeorm (1.1.2) | apps/api | DataSource, pooled connection and later migrations (Backend document). No entities yet; synchronize and migrationsRun are always off. Published 2026-10-08, past the release-age check | MIT |
 | @tanstack/react-query (5.104.2) | apps/web | Server-state cache and query client; the Frontend document keeps server data in TanStack Query only, and the legacy app used it. A release over two weeks old: 5.105.1 was published on 2026-11-01 | MIT |
 
 CSS approach: none yet. D-001A puts design on hold until the owner supplies a new design, so no styling library is chosen.
