@@ -15,6 +15,11 @@ export interface AppConfig {
   readonly allowedOrigins: readonly string[];
   readonly trustProxyHops: number;
   readonly logLevel: LogLevel;
+  /** Application-role connection string. A secret: never log it. */
+  readonly databaseUrl: string;
+  readonly dbPoolMax: number;
+  /** The build's git commit
+   *  readonly logLevel: LogLevel;
   /** The build's git commit, or "unknown" when the host does not provide one. */
   readonly commit: string;
 }
@@ -23,6 +28,8 @@ const PORT_MIN = 1;
 const PORT_MAX = 65_535;
 const TRUST_PROXY_HOPS_MIN = 0;
 const TRUST_PROXY_HOPS_MAX = 10;
+const DB_POOL_MAX_MIN = 1;
+const DB_POOL_MAX_MAX = 50;
 const DEFAULT_LOG_LEVEL: LogLevel = "info";
 const UNKNOWN_COMMIT = "unknown";
 
@@ -66,6 +73,20 @@ function parseInteger(name: string, raw: string | undefined, min: number, max: n
   return ok(value);
 }
 
+/** The value is never echoed in an error: a connection string holds a password. */
+function parseDatabaseUrl(raw: string | undefined): Parsed<string> {
+  const text = present(raw);
+  if (text === undefined) return fail("DATABASE_URL is required");
+  try {
+    const url = new URL(text);
+    const isPostgres = url.protocol === "postgres:" || url.protocol === "postgresql:";
+    if (isPostgres && url.hostname !== "" && url.pathname.length > 1) return ok(text);
+  } catch {
+    // fall through to the single generic message below
+  }
+  return fail("DATABASE_URL must be a postgres:// or postgresql:// URL with a host and a database name");
+}
+
 /** An origin is scheme, host and optional port: no path, no trailing slash, no credentials. */
 function isOrigin(entry: string): boolean {
   try {
@@ -98,20 +119,26 @@ export function parseConfig(source: EnvSource): AppConfig {
     TRUST_PROXY_HOPS_MIN,
     TRUST_PROXY_HOPS_MAX,
   );
+  const databaseUrl = parseDatabaseUrl(source["DATABASE_URL"]);
+  const poolMax = parseInteger("DB_POOL_MAX", source["DB_POOL_MAX"], DB_POOL_MAX_MIN, DB_POOL_MAX_MAX);
   const logLevel =
     source["LOG_LEVEL"] === undefined
       ? ok<LogLevel>(DEFAULT_LOG_LEVEL)
       : parseOneOf("LOG_LEVEL", source["LOG_LEVEL"], LOG_LEVELS);
 
-  if (!nodeEnv.ok || !port.ok || !origins.ok || !hops.ok || !logLevel.ok) {
-    throw new ConfigError([nodeEnv, port, origins, hops, logLevel].flatMap(issuesOf));
+   if (!nodeEnv.ok || !port.ok || !origins.ok || !hops.ok || !logLevel.ok || !databaseUrl.ok || !poolMax.ok) {
+    throw new ConfigError(
+      [nodeEnv, port, origins, hops, databaseUrl, poolMax, logLevel].flatMap(issuesOf),
+    );
   }
   return {
     nodeEnv: nodeEnv.value,
     port: port.value,
     allowedOrigins: origins.value,
     trustProxyHops: hops.value,
-    logLevel: logLevel.value,
+       logLevel: logLevel.value,
+    databaseUrl: databaseUrl.value,
+    dbPoolMax: poolMax.value,
     commit: present(source["RENDER_GIT_COMMIT"]) ?? UNKNOWN_COMMIT,
   };
 }
