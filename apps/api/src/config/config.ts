@@ -147,3 +147,11 @@ export function parseConfig(source: EnvSource): AppConfig {
 export function loadConfig(): AppConfig {
   return parseConfig(process.env);
 }
+
+
+/** For the database tests, which need only the application-role URL. Still the one reader of process.env. */
+export function loadDatabaseUrl(source: EnvSource = process.env): string {
+  const url = parseDatabaseUrl(source["DATABASE_URL"]);
+  if (!url.ok) throw new ConfigError([url.issue]);
+  return url.value;
+}
