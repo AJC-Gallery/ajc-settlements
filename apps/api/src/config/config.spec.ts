@@ -8,6 +8,8 @@ const VALID: EnvSource = {
   ALLOWED_ORIGINS: "https://app.example.com,http://localhost:3000",
   TRUST_PROXY_HOPS: "1",
   LOG_LEVEL: "warn",
+  DATABASE_URL: "postgres://ajc_app:secret-pw@db.example.com:5432/ajc",
+  DB_POOL_MAX: "5",
 };
 
 const withEnv = (patch: EnvSource): EnvSource => ({ ...VALID, ...patch });
@@ -38,7 +40,9 @@ describe("parseConfig", () => {
       port: 3100,
       allowedOrigins: ["https://app.example.com", "http://localhost:3000"],
       trustProxyHops: 1,
-      logLevel: "warn",
+           logLevel: "warn",
+      databaseUrl: "postgres://ajc_app:secret-pw@db.example.com:5432/ajc",
+      dbPoolMax: 5,
       commit: "unknown",
     });
   });
@@ -65,8 +69,7 @@ describe("parseConfig", () => {
     expect(config.allowedOrigins).toEqual(["https://a.com"]);
   });
 
-  it.each(["NODE_ENV", "PORT", "ALLOWED_ORIGINS", "TRUST_PROXY_HOPS"])(
-    "rejects the config when %s is missing",
+  it.each(["NODE_ENV", "PORT", "ALLOWED_ORIGINS", "TRUST_PROXY_HOPS", "DATABASE_URL", "DB_POOL_MAX"])(    "rejects the config when %s is missing",
     (name) => {
       expect(issuesOf(withEnv({ [name]: undefined }))).toEqual([expect.stringContaining(name)]);
     },
@@ -95,6 +98,12 @@ describe("parseConfig", () => {
     ["ALLOWED_ORIGINS", "ftp://app.example.com"],
     ["ALLOWED_ORIGINS", "https://user:pw@app.example.com"],
     ["ALLOWED_ORIGINS", "https://a.com,"],
+    ["DATABASE_URL", "mysql://u:p@h:3306/d"],
+    ["DATABASE_URL", "not a url"],
+    ["DATABASE_URL", "postgres://u:p@host"],
+    ["DB_POOL_MAX", "0"],
+    ["DB_POOL_MAX", "51"],
+    ["DB_POOL_MAX", "abc"],
   ])("rejects %s when it is %j", (name, value) => {
     expect(issuesOf(withEnv({ [name]: value }))).toEqual([expect.stringContaining(name)]);
   });
@@ -103,5 +112,11 @@ describe("parseConfig", () => {
     const issues = issuesOf(withEnv({ NODE_ENV: "x", PORT: "0", TRUST_PROXY_HOPS: "true" }));
     expect(issues).toHaveLength(3);
     expect(issues.join("\n")).toMatch(/NODE_ENV[\s\S]*PORT[\s\S]*TRUST_PROXY_HOPS/);
+  });
+
+    it("never puts the connection string in an error message", () => {
+    const bad = "postgres://ajc_app:hunter2-secret@host";
+    const message = issuesOf(withEnv({ DATABASE_URL: bad })).join("\n");
+    expect(message).not.toContain("hunter2-secret");
   });
 });
