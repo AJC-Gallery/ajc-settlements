@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { NAVIGATION_COPY } from "../../../../copy/navigation";
-import { getRequestLanguage } from "../../../../features/language";
+import { getRequestLanguage, LanguageSwitch } from "../../../../features/language";
 import { NavigationList, worldNavigation } from "../../../../features/navigation";
 
 interface WorldLayoutProps {
@@ -15,6 +15,7 @@ export default async function WorldLayout({ children, params }: WorldLayoutProps
     <>
       <header>
         <NavigationList items={worldNavigation(worldId)} landmark={NAVIGATION_COPY.landmark} locale={locale} />
+        <LanguageSwitch current={locale} />
       </header>
       <main>{children}</main>
     </>
