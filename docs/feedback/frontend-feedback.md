@@ -1,3 +1,88 @@
+# Entry F-003
+Date: 2026-11-09 · Phase: 1 · Answers directive D-003 · PRs: #27, #28, #32, #35 (web, all merged)
+Status: ready to send
+
+## 1. Done since the last entry
+
+Instruction report for D-003:
+
+| Instruction | Report |
+|---|---|
+| 1. Language routing, option C | **Done**, with the acceptance item "pnpm verify green on a fresh checkout" not verified (section 2). |
+| 2. Default request timeout in the client | **Done**, with one deviation from the wording (below) and one behaviour not verified (section 2). |
+| 3. Real fresh-clone check when GitHub is reachable | **Not done.** Pending (section 2). |
+
+Language routing (PRs #27, #28, #32; 230, 296 and 125 changed lines · evidence: `git diff --cached --shortstat` printed 224 insertions and 6 deletions, then 214 and 82, then 124 and 1, all under the S-10 limit of 400):
+- **Constants and choice logic in one place** (`copy/locales.ts`, `copy/language.ts`): the languages, the cookie name `ajc_language`, one year in seconds, and `publicPath`, the one function that adds the language prefix to a public path.
+- **Choice order** is cookie, then browser language, then English, and an unknown cookie value is ignored · evidence: `language.spec.ts (52 tests)` includes "does use the cookie when the cookie names a language", "does prefer the cookie over the browser language when they differ", "does use the browser language when there is no cookie", "does fall back to the browser language when the cookie value is %j" (for "de", "FR", "fr-FR", an empty string, " fr", "constructor" and "__proto__") and "does use English when there is no cookie and no usable browser language".
+- **No hard-coded internal link, prefix added in one place** · evidence: `navigation.spec.ts (10 tests)` includes "does not find a hard-coded internal link when the app and feature files are scanned", "does start every public link with the language prefix when the language is %s", "does not put a language prefix on a signed-in link" and "does point every item at a page that exists in the app folder". Navigation links are built by `publicNavigation(locale)` and `worldNavigation(worldId)`.
+- **The build route table shows the public home under both languages** · evidence: `pnpm verify` printed `┌ ○ /_not-found`, `├ /[locale]`, `│ ├ ● /en`, `│ └ ● /fr`, `├ ƒ /language`, `└ ƒ /worlds/[worldId]` and `ƒ Proxy (Middleware)`.
+- **`<html lang>` is set per route group.** The root layout is gone; the public group sets the language from the URL, and the signed-in group sets it from the cookie, then the browser · evidence: `route-groups.spec.ts (5 tests)` includes "does not find a page or a layout at the root of the app folder" and "does give each route group its own layout so each sets its own html language", and the `curl` output below.
+- **The redirect from `/`** is `proxy.ts`, Next 16's name for middleware, with a 307 and `Vary: Cookie, Accept-Language` · evidence: `proxy.spec.ts (6 tests)`, and these nine `curl` results on the production build of #28: `307 -> http://localhost:3000/en` with no headers; `/fr` with browser French; `/fr` with cookie French and browser English; `/fr` with cookie `de` and browser French; `/en` rendered `<html lang="en">`, `<h1>AJC Settlements</h1>` and `aria-label="Main navigation"`; `/fr` rendered `<html lang="fr">`, the French paragraph and `aria-label="Navigation principale"`; `/de` returned 404; `/worlds/abc` with browser French rendered `<html lang="fr">` and `<h1>Aperçu</h1>`; with cookie English and browser French it rendered `<html lang="en">` and `<h1>Overview</h1>`.
+- **The language switch** is a plain form post (works without JavaScript) to `/language`, which sets the cookie and returns to the page the person was on · evidence: `route.spec.ts (10 tests)`, and these `curl` results on the production build of #32: the form markup `<form role="group" aria-label="Language" action="/language" method="post">` with English marked `aria-current="true"`; a POST of `locale=fr` from `/en` returned `303`, `location: http://localhost:3000/fr` and `set-cookie: ajc_language=fr; Path=/; Expires=Mon, 08 Nov 2027 18:35:09 GMT; Max-Age=31536000; SameSite=lax`; a POST from `/worlds/abc` returned `303` back to `/worlds/abc`; `locale=de` returned 400; `GET /language` returned 405; `/` with the cookie returned `307 -> http://localhost:3000/fr`; `/worlds/abc` with the cookie rendered `<html lang="fr">`, `<h1>Aperçu</h1>` and `aria-label="Langue"`.
+- **Cookie attributes** match D-003: `Path=/`, `SameSite=lax`, `Max-Age=31536000`, no `HttpOnly`. I did not add `Secure`, because D-003 lists none (section 3).
+- **Open redirect closed** · evidence: `language.spec.ts` "does go to the public home when the return path is %j" (for `//evil.example`, `/\evil.example`, `https://evil.example`, an empty string and null), "does return null when the referer is %j", and `route.spec.ts` "does not follow a protocol-relative path in the referer" and "does go to the public home when the referer is on another host".
+- **Checks and gates** · evidence: `gh pr checks` printed five successes (boundaries, db, static, unit, web) for #27, #28 and #32; `pnpm verify` ran to the end for each PR (327, 339 and 368 tests, `eslint .` with no output, "no dependency violations found", "guards: ok", builds of contracts, api and web).
+
+Request timeout (PR #35, 209 changed lines · evidence: `git diff --cached --shortstat` printed 195 insertions and 14 deletions):
+- **30 seconds as one named constant**, `REQUEST_TIMEOUT_MS`, covering a call including its refresh and retry. The caller's own signal and the timer are joined, so either aborts. A timeout becomes a `network` failure; the caller's abort is rethrown unchanged · evidence: `api-timeout.spec.ts (12 tests)`: "does give a network failure when the API does not answer within the limit", "does not give up before the limit is reached", "does time out each request on its own when two run at once", "does rethrow the caller's abort unchanged when the caller aborts first", "does rethrow the caller's abort unchanged when the signal was already aborted", "does not turn the caller's abort into a network failure when the limit passes afterwards".
+- **No timer left running** after a success, an API error, a request that did not reach the API, a caller abort, or a timeout · evidence: the five "does leave no timer running after …" tests, using `vi.getTimerCount()`.
+- **Nothing else about the client changed** · evidence: `api.spec.ts (25 tests)` passed unchanged in the same `pnpm verify` run (389 tests in total).
+- **Deviation from the wording:** D-003 names `AbortSignal.timeout`. I used a timer I can clear (`setTimeout` and `clearTimeout`) with an `AbortController`, because `AbortSignal.timeout` creates a timer that cannot be cleared or observed, so "no timer left running" could not be tested. The limit, the constant and the behaviour are as ruled.
+
+Rulings acknowledged, no change needed: the 5xx reading (option A) is what the client already does; the URL decision is implemented as option C; the contracts-in-the-bundle proof waits for the first screen that uses the client; the French wording stays provisional.
+
+## 2. Not verified
+
+- **`pnpm verify` and `pnpm test` on a real fresh clone (D-003 instruction 3, and the acceptance of instruction 1).** The owner's clone failed on 2026-11-04 ("Could not resolve host: github.com"), and no retry result has been pasted. The substitute from F-002 (all build outputs removed, then `pnpm test` with 272 tests) is not a clone.
+- **The check results of PR #35.** The owner merged it right after opening it, before CI had started, and did not paste the result. The merge succeeded under required checks, so I treat it as green, but I have not seen the output.
+- **The rewrite and the language routing through `dev.ajc-gallery.com`.** I have not been told the Vercel project exists. Nothing here was run on Vercel, including `proxy.ts` and the `/language` route handler.
+- **Next resolving the compiled contracts in the web bundle.** Still no page imports `@ajc/contracts` at runtime. This proof arrives with the first screen that uses the client.
+- **Browser behaviour.** The language switch, the redirect and the markup were checked with `curl` only, not in a browser: no check of the form submit, the cookie in the browser, or the `Referer` header the browser sends.
+- **A hung response body under a real fetch.** The tests use a fake fetch. In a browser, aborting the signal also aborts a body that is still streaming; I have not seen that happen.
+- **Sandbox-only evidence (Node 22; not run on the owner's machine):** three mutation checks on the timeout code (timer never cleared, caller's abort not forwarded, timeout not turned into a network failure), each failing the intended tests.
+- **The dev API's real error envelope.** The backend merged the JSON 404 (PR #26). Whether the dev host runs it, I have not seen.
+- **Accessibility, Core Web Vitals, bundle size and any viewport check:** not measured. The pages are still unstyled (D-001A).
+- **French wording** is mine and unreviewed.
+
+## 3. Blocked or decision needed
+
+- **`Secure` on the language cookie** · options: (A) set `Secure` when the request is https (decided from the request, so it needs no environment variable), and leave it off on plain http such as local development; (B) leave it as D-003 lists it, with no `Secure`. · my recommendation: A, because every deployed environment is https and the attribute costs nothing there. D-003 lists the attributes exactly, so I did not change them without a ruling.
+- **Lint plugin for Next** (deferred by D-002 and D-003; recommendation unchanged): `@next/eslint-plugin-next` plus `eslint-plugin-react-hooks`, not `eslint-config-next`, whose bundled plugins declare ESLint peers up to 9 only.
+
+## 4. Proposed contract changes
+
+- When identity arrives, as D-003 section 3 already says: a shared `Locale` constant (`"en" | "fr"`) and the person's language preference. Additive. The web's own constants (`LOCALES`, `isLocale`) move to it then, and the signed-in language is read from the person, with the cookie as a fallback.
+- Carried forward from F-002, all additive: the `Permission` name union; the sign-in and refresh path constants that the client's `noRefreshPaths` will read; the later change that makes `constraints` required.
+
+## 5. Needs from the other agent
+
+- **From the deployment owner and the controlling agent:** the Vercel project, its two variables and the `dev.ajc-gallery.com` steps. D-002 and D-003 say the steps follow the shell merge, which happened on 2026-10-29, and gate G1-F cannot close without them. This also decides whether I can verify `proxy.ts` and `/language` on a real host.
+- **From the backend:** confirmation that the real error envelope (including `requestId`) is deployed to dev for unknown routes; the auth contract (sign-in, sign-up and refresh endpoints and types, the path constants, the status of a failed refresh); constraint names for upload errors, before the asset form; and the person's language preference with identity.
+
+## 6. Rule conflicts and waiver requests
+
+- None.
+
+## 7. Risks noticed
+
+- **The language switch returns to the page through the `Referer` header.** A browser that sends no `Referer` (a privacy setting or a `no-referrer` policy) lands on the public home in the new language, even for a signed-in person, which would be surprising on a signed-in screen. Likelihood: low; the fix is a hidden field filled by a small client component, which needs JavaScript. I kept the no-JavaScript form.
+- **Public pages exist only under `/en` and `/fr`.** Any unprefixed public path, such as a future `/sign-in`, returns 404, and only `/` is redirected. New public pages must be created under `(public)/[locale]`; a test fails if a public page sits elsewhere.
+- **Unknown URLs show Next's built-in 404 page.** With no root layout, there is no place for a translated not-found page. It is unstyled and in English. This should be revisited with the design; I have not verified Next's global-not-found option.
+- **The cookie is set only by the switch.** A person who only follows `/fr` links never gets one, and their signed-in screens then follow the browser's language. That is as D-003 rules.
+- **`/` is now a redirect,** so a first visit costs one extra request.
+- **A refresh and its retry share one 30-second budget.** A slow refresh followed by a slow request can time out on the second step; the person sees a network failure and may retry.
+- **My own errors this period:** my first command list for PR 2 did not chain its steps, so a branch and three file moves were created even though the PR 1 check had failed (corrected: dependent steps are chained, and the scripts verify their own result); an earlier sandbox slip applied an edit twice before I noticed, which cost nothing on your side. Likelihood of similar slips is lower now that scripts verify themselves.
+- **The owner's network is unreliable** (registry timeouts, a failed clone). It slows every fresh-clone check.
+
+## 8. Owner's notes (written by you)
+
+- Secure on the language cookie: decided by the controlling agent in the next directive.
+- Lint plugin for Next: stays deferred until the design directive.
+- The results for the not-verified items (PR #35 checks, dev API envelope, GitHub reachability, Vercel) go to the controlling agent separately.
+
+---
+
 # Entry F-002
 Date: 2026-11-04 · Phase: 1 · Answers directive D-002 · PRs: #18, #19, #20, #21, #22 (web, all merged). Reviewed, not authored: #16 (C-004).
 Status: ready to send
