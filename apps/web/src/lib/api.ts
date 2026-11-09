@@ -36,8 +36,23 @@ interface Transport {
   readonly baseUrl: string;
 }
 
+interface ClientContext {
+  readonly transport: Transport;
+  readonly refresh: (() => Promise<boolean>) | null;
+  readonly noRefreshPaths: readonly string[];
+}
+
+interface Deadline {
+  readonly signal: AbortSignal;
+  readonly timedOut: () => boolean;
+  readonly stop: () => void;
+}
+
 const UNAUTHENTICATED_STATUS = 401;
 const NO_CONTENT_STATUS = 204;
+
+/** How long one call may take, refresh and retry included, before it counts as an answer that never came (D-003). */
+export const REQUEST_TIMEOUT_MS = 30_000;
 
 // These are mistakes in our own code, not answers from the API, so they throw before anything is sent.
 function checkOptions(options: RequestOptions): void {
@@ -103,24 +118,62 @@ function createSharedRefresh(refreshSession: (() => Promise<boolean>) | undefine
   };
 }
 
-export function createApiClient(config: ApiClientConfig = {}): ApiClient {
-  const transport: Transport = {
-    fetchFn: config.fetch ?? ((input, init) => globalThis.fetch(input, init)),
-    baseUrl: config.baseUrl ?? "",
+// One timer and one signal per call, joined with the caller's own signal so either one aborts. The timer is
+// cleared when the call ends (AbortSignal.timeout cannot be cleared), so nothing is left running after it.
+function startDeadline(caller: AbortSignal | undefined): Deadline {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
+  const forward = (): void => controller.abort(caller?.reason);
+  if (caller?.aborted === true) forward();
+  else caller?.addEventListener("abort", forward, { once: true });
+  return {
+    signal: controller.signal,
+    timedOut: () => timedOut,
+    stop: () => {
+      clearTimeout(timer);
+      caller?.removeEventListener("abort", forward);
+    },
   };
-  const refresh = createSharedRefresh(config.refreshSession);
-  const noRefreshPaths = config.noRefreshPaths ?? [];
+}
+
+async function run<T>(context: ClientContext, options: RequestOptions): Promise<T> {
+  const { transport, refresh, noRefreshPaths } = context;
+  let response = await sendOnce(transport, options);
+  const canRefresh = refresh !== null && !noRefreshPaths.includes(options.path);
+  // One refresh and one retry: a second 401 is final (Frontend document, error table).
+  if (response.status === UNAUTHENTICATED_STATUS && canRefresh && (await refresh())) {
+    response = await sendOnce(transport, options);
+  }
+  if (response.ok) return readSuccess<T>(response);
+  throw new ApiError(await failureFromResponse(response));
+}
+
+export function createApiClient(config: ApiClientConfig = {}): ApiClient {
+  const context: ClientContext = {
+    transport: {
+      fetchFn: config.fetch ?? ((input, init) => globalThis.fetch(input, init)),
+      baseUrl: config.baseUrl ?? "",
+    },
+    refresh: createSharedRefresh(config.refreshSession),
+    noRefreshPaths: config.noRefreshPaths ?? [],
+  };
   return {
     async request<T>(options: RequestOptions): Promise<T> {
       checkOptions(options);
-      let response = await sendOnce(transport, options);
-      const canRefresh = refresh !== null && !noRefreshPaths.includes(options.path);
-      // One refresh and one retry: a second 401 is final (Frontend document, error table).
-      if (response.status === UNAUTHENTICATED_STATUS && canRefresh && (await refresh())) {
-        response = await sendOnce(transport, options);
+      const deadline = startDeadline(options.signal);
+      try {
+        return await run<T>(context, { ...options, signal: deadline.signal });
+      } catch (error) {
+        // No answer in time is the same as a request that never reached the API; the caller's own abort passes through.
+        if (deadline.timedOut()) throw new ApiError({ kind: "network" });
+        throw error;
+      } finally {
+        deadline.stop();
       }
-      if (response.ok) return readSuccess<T>(response);
-      throw new ApiError(await failureFromResponse(response));
     },
   };
 }
