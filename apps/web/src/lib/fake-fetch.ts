@@ -9,7 +9,7 @@ export interface RecordedCall {
 }
 
 /** A Response (used once), an Error (the request fails to reach the API), or a function that builds one. */
-export type Step = Response | Error | (() => Response | Promise<Response>);
+export type Step = Response | Error | ((init: RequestInit) => Response | Promise<Response>);
 
 export function createFakeFetch(steps: readonly Step[]): { readonly fetchFn: FetchLike; readonly calls: RecordedCall[] } {
   const calls: RecordedCall[] = [];
@@ -19,9 +19,18 @@ export function createFakeFetch(steps: readonly Step[]): { readonly fetchFn: Fet
     const step = steps[next++];
     if (step === undefined) throw new Error("The fake fetch ran out of steps");
     if (step instanceof Error) throw step;
-    return typeof step === "function" ? step() : step;
+    return typeof step === "function" ? step(init) : step;
   };
   return { fetchFn, calls };
+}
+
+/** A request that never answers until it is aborted, then fails with the abort reason, as a real fetch does. */
+export function hangUntilAborted(init: RequestInit): Promise<Response> {
+  return new Promise((_resolve, reject) => {
+    const { signal } = init;
+    if (signal?.aborted === true) reject(signal.reason);
+    else signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+  });
 }
 
 export function jsonResponse(status: number, body: unknown, headers: Record<string, string> = {}): Response {
