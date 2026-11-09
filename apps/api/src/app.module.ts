@@ -3,6 +3,8 @@ import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { APP_CONFIG } from "./config/config.token.js";
 import type { AppConfig } from "./config/config.js";
+import { Database } from "./platform/database.js";
+import { DATABASE } from "./platform/database.token.js";
 import { HealthController } from "./platform/health.controller.js";
 import { GLOBAL_THROTTLERS } from "./platform/rate-limit.js";
 
@@ -16,7 +18,8 @@ export class AppModule {
       controllers: [HealthController],
       providers: [
         { provide: APP_CONFIG, useValue: config },
-        { provide: APP_GUARD, useClass: ThrottlerGuard },
+        { provide: DATABASE, useFactory: () => new Database(config) },
+		        { provide: APP_GUARD, useClass: ThrottlerGuard },
       ],
     };
   }
