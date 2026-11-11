@@ -11,8 +11,9 @@ export class ApiError extends Error {
   readonly code: ErrorCode;
   readonly details: ApiErrorDetails;
 
-  constructor(code: ErrorCode, message: string, details: ApiErrorDetails = null) {
-    super(message);
+  /** `cause` may be a driver error whose message holds values. It is read only for its SQLSTATE and never logged or serialised. */
+  constructor(code: ErrorCode, message: string, details: ApiErrorDetails = null, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
     this.name = "ApiError";
     this.code = code;
     this.details = details;
