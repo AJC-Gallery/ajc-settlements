@@ -11,8 +11,10 @@ import { ApiError } from "./api-error.js";
 export interface ErrorResponse {
   readonly status: number;
   readonly body: ApiErrorBody;
-  /** True for a status of 500 or more. The filter logs these at error level. */
+  /** True for a status of 500 or more except SERVICE_UNAVAILABLE. The filter logs these at error level. */
   readonly isUnexpected: boolean;
+  /** True for SERVICE_UNAVAILABLE: a reported state (for example readiness), logged at warn without a stack. */
+  readonly isUnavailable: boolean;
 }
 
 const SERVER_ERROR_MIN_STATUS = 500;
@@ -85,5 +87,6 @@ function classify(error: unknown, requestId: string): ApiErrorBody | undefined {
 export function toErrorResponse(error: unknown, requestId: string): ErrorResponse {
   const body = classify(error, requestId) ?? internalBody(requestId);
   const status = ERROR_HTTP_STATUS[body.code];
-  return { status, body, isUnexpected: status >= SERVER_ERROR_MIN_STATUS };
+  const isUnavailable = body.code === ERROR_CODES.SERVICE_UNAVAILABLE;
+  return { status, body, isUnavailable, isUnexpected: status >= SERVER_ERROR_MIN_STATUS && !isUnavailable };
 }

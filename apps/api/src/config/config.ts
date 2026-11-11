@@ -18,8 +18,6 @@ export interface AppConfig {
   /** Application-role connection string. A secret: never log it. */
   readonly databaseUrl: string;
   readonly dbPoolMax: number;
-  /** The build's git commit
-   *  readonly logLevel: LogLevel;
   /** The build's git commit, or "unknown" when the host does not provide one. */
   readonly commit: string;
 }

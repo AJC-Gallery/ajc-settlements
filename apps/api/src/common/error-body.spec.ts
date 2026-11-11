@@ -20,6 +20,12 @@ describe("toErrorResponse with an ApiError", () => {
     expect(result.body).toEqual({ code, message: "m", details: null, requestId: REQUEST_ID });
   });
 
+  it("marks SERVICE_UNAVAILABLE as unavailable and not unexpected", () => {
+    const result = toErrorResponse(new ApiError("SERVICE_UNAVAILABLE", "m"), REQUEST_ID);
+    expect(result).toMatchObject({ status: 503, isUnavailable: true, isUnexpected: false });
+  });
+  });
+
   it("keeps the field list when the code is VALIDATION_FAILED", () => {
     const details = { fields: [{ field: "name", messages: ["too short"] }] };
     const result = toErrorResponse(new ApiError("VALIDATION_FAILED", "m", details), REQUEST_ID);
@@ -41,7 +47,6 @@ describe("toErrorResponse with an ApiError", () => {
     const result = toErrorResponse(error, REQUEST_ID);
     expect(result).toMatchObject({ status: 500, isUnexpected: true, body: { code: "INTERNAL_ERROR" } });
   });
-});
 
 describe("toErrorResponse with a Nest exception", () => {
   it("maps NotFoundException to NOT_FOUND without echoing the path", () => {

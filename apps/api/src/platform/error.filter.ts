@@ -4,6 +4,7 @@ import { toErrorResponse, type ErrorResponse } from "../common/error-body.js";
 import { REQUEST_ID_HEADER } from "../common/request-id.js";
 import type { Logger } from "./logger.js";
 import { routeLabelOf, type RouteRequestLike } from "./route-label.js";
+import { ApiError } from "../common/api-error.js";
 
 /** `Retry-After` for a 429 when the rate limiter did not set one already, in whole seconds. */
 export const DEFAULT_RETRY_AFTER_SECONDS = 60;
@@ -76,16 +77,22 @@ export class ErrorFilter implements ExceptionFilter {
       status: result.status,
       method: request.method,
       route: routeLabelOf(request),
-	    };
+	 };
+     const cause = exception instanceof Error ? exception : undefined;
+    if (result.isUnavailable) {
+      // A reported state: no message, no stack. The SQLSTATE is read from the driver error when there is one.
+      const driver = cause instanceof ApiError && cause.cause instanceof Error ? cause.cause : cause;
+      this.logger.warn("service unavailable", { ...fields, sqlState: sqlStateOf(driver) });
+      return;
+    }
     if (!result.isUnexpected) {
       this.logger.info("request rejected", fields);
       return;
     }
-    const cause = exception instanceof Error ? exception : undefined;
     this.logger.error("request failed", {
       ...fields,
       errorName: cause?.name ?? typeof exception,
-	        sqlState: sqlStateOf(cause),
+      sqlState: sqlStateOf(cause),
       stack: framesOf(cause),
     });
   }

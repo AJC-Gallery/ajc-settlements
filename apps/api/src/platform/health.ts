@@ -7,8 +7,7 @@ export function liveResponse(commit: string): HealthLiveResponse {
 }
 
 /**
- * Readiness: one trivial query. Any failure becomes SERVICE_UNAVAILABLE with fixed text. The driver
- * error is dropped here, so its message (host names, values) can never be echoed or logged (P-13).
+ * Readiness: one trivial query. Any failure becomes SERVICE_UNAVAILABLE with fixed text. The driver error is kept only as the cause: its message never reaches the response or a log (P-13)
  */
 export async function readyResponse(
   commit: string,
@@ -16,8 +15,9 @@ export async function readyResponse(
 ): Promise<HealthReadyResponse> {
   try {
     await ping();
-  } catch {
-    throw new ApiError("SERVICE_UNAVAILABLE", "Database unavailable");
+  } catch (error) {
+    // The driver error rides along as the cause so the filter can read its SQLSTATE. It is never echoed.
+    throw new ApiError("SERVICE_UNAVAILABLE", "Database unavailable", null, error);
   }
   return { status: "ok", commit };
 }

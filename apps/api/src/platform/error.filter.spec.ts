@@ -60,6 +60,19 @@ describe("ErrorFilter", () => {
     expect(response.getHeader("x-request-id")).toBe("req_1234-abcd");
   });
 
+  it("logs the SQLSTATE of a 503 cause at warn and none of its message", () => {
+    const { filter, host, lines, logged } = setup({
+      method: "GET",
+      route: { path: "/api/v1/health/ready" },
+      requestId: "req_1234-abcd",
+    });
+    const driver = Object.assign(new Error("password=hunter2 connect failed"), { code: "08006" });
+    filter.catch(new ApiError("SERVICE_UNAVAILABLE", "Database unavailable", null, driver), host);
+    expect(logged()).toMatchObject({ level: "warn", sqlState: "08006", status: 503 });
+    expect(lines[0]).not.toContain("hunter2");
+    expect(logged()["stack"]).toBeUndefined();
+  });
+
   it("makes a request id when the request has none", () => {
     const { filter, response, host } = setup({ method: "GET" });
     filter.catch(new ApiError("NOT_FOUND", "m"), host);
@@ -67,7 +80,8 @@ describe("ErrorFilter", () => {
   });
 
   it("logs a rejected request at info level without a stack", () => {
-    const { filter, host, lines, logged } = setup({ method: "POST", route: { path: "/assets" }, requestId: "req_1234-abcd" });    filter.catch(new ApiError("CONFLICT", "m"), host);
+    const { filter, host, lines, logged } = setup({ method: "POST", route: { path: "/assets" }, requestId: "req_1234-abcd" }); 
+	filter.catch(new ApiError("CONFLICT", "m"), host);
     expect(lines).toHaveLength(1);
     expect(logged()).toMatchObject({ level: "info", code: "CONFLICT", status: 409, method: "POST", route: "/assets" });
     expect(logged()["stack"]).toBeUndefined();
