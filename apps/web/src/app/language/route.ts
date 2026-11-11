@@ -15,6 +15,15 @@ async function readLocale(request: NextRequest): Promise<Locale | null> {
   }
 }
 
+// Secure only on https (D-004), decided from the request alone: its own protocol first, then what a proxy in
+// front of us says it received. Plain http (local development) gets no Secure, because a browser would refuse
+// to store the cookie.
+function isHttps(request: NextRequest): boolean {
+  if (request.nextUrl.protocol === "https:") return true;
+  const forwarded = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  return forwarded === "https";
+}
+
 // The language switch posts here (D-003). It sets the cookie and goes back to the page the person was on.
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const locale = await readLocale(request);
@@ -25,6 +34,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   response.cookies.set(LANGUAGE_COOKIE_NAME, locale, {
     path: "/",
     sameSite: "lax",
+    secure: isHttps(request),
     maxAge: LANGUAGE_COOKIE_MAX_AGE_SECONDS,
   });
   return response;
