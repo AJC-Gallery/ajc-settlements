@@ -8,9 +8,15 @@ import { POST } from "./route";
 
 const HOST = "http://localhost:3000";
 
-function post(body: BodyInit | null, headers: Record<string, string> = {}) {
-  return POST(new NextRequest(`${HOST}${LANGUAGE_SWITCH_PATH}`, { method: "POST", body, headers }));
+function post(body: BodyInit | null, headers: Record<string, string> = {}, origin = HOST) {
+  return POST(new NextRequest(`${origin}${LANGUAGE_SWITCH_PATH}`, { method: "POST", body, headers }));
 }
+
+async function setCookieOf(response: Promise<Response>): Promise<string> {
+  return (await response).headers.get("set-cookie") ?? "";
+}
+
+const SECURE_ATTRIBUTE = /;\s*Secure(;|$)/;
 
 function form(locale: string): URLSearchParams {
   return new URLSearchParams({ locale });
@@ -68,5 +74,41 @@ describe("language switch route", () => {
   it("does answer 400 when the body is not a form", async () => {
     const response = await post(JSON.stringify({ locale: "fr" }), { "content-type": "application/json" });
     expect(response.status).toBe(400);
+  });
+
+  describe("the Secure attribute", () => {
+    it("does set Secure when the request URL is https", async () => {
+      expect(await setCookieOf(post(form("fr"), {}, "https://dev.example"))).toMatch(SECURE_ATTRIBUTE);
+    });
+
+    it("does not set Secure when the request is plain http", async () => {
+      expect(await setCookieOf(post(form("fr")))).not.toMatch(SECURE_ATTRIBUTE);
+    });
+
+    it("does set Secure when an http URL arrives with x-forwarded-proto https", async () => {
+      expect(await setCookieOf(post(form("fr"), { "x-forwarded-proto": "https" }))).toMatch(SECURE_ATTRIBUTE);
+    });
+
+    it("does not set Secure when x-forwarded-proto says http", async () => {
+      expect(await setCookieOf(post(form("fr"), { "x-forwarded-proto": "http" }))).not.toMatch(SECURE_ATTRIBUTE);
+    });
+
+    it("does read the first value when x-forwarded-proto lists several", async () => {
+      expect(await setCookieOf(post(form("fr"), { "x-forwarded-proto": "HTTPS, http" }))).toMatch(SECURE_ATTRIBUTE);
+      expect(await setCookieOf(post(form("fr"), { "x-forwarded-proto": "http,https" }))).not.toMatch(SECURE_ATTRIBUTE);
+    });
+
+    it("does keep the other attributes when Secure is set", async () => {
+      const setCookie = await setCookieOf(post(form("fr"), {}, "https://dev.example"));
+      expect(setCookie).toContain(`${LANGUAGE_COOKIE_NAME}=fr`);
+      expect(setCookie).toContain("Path=/");
+      expect(setCookie).toContain(`Max-Age=${LANGUAGE_COOKIE_MAX_AGE_SECONDS}`);
+      expect(setCookie).toContain("SameSite=lax");
+      expect(setCookie).not.toContain("HttpOnly");
+    });
+
+    it("does send no cookie, and so no Secure, when the form is rejected", async () => {
+      expect(await setCookieOf(post(form("de"), {}, "https://dev.example"))).toBe("");
+    });
   });
 });
