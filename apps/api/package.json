@@ -6,7 +6,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "db:migrate": "tsc -p tsconfig.build.json && node --env-file-if-exists=.env dist/platform/migrate-cli.js up",
+    "db:migrate:revert": "tsc -p tsconfig.build.json && node --env-file-if-exists=.env dist/platform/migrate-cli.js down"
   },
   "dependencies": {
     "@ajc/contracts": "workspace:*",
