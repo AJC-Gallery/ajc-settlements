@@ -36,6 +36,16 @@ Migrations are compiled with the API and run by a small command, as the role `aj
 
 Both read `MIGRATOR_DATABASE_URL` from the environment or from `apps/api/.env`. The running API never reads it. A migration is a file `src/migrations/<timestamp>-<name>.ts` with a why-header and a working `down()`, registered in `src/migrations/index.ts`.
 
+## Database tests
+
+`pnpm test:db` runs the `*.int.spec.ts` files in `apps/api/test` against the local database, connected as `ajc_app` (never a superuser). Local order:
+
+1. `pnpm db:up`
+2. `pnpm --filter @ajc/api db:migrate`
+3. `pnpm test:db`
+
+The tests need the migrations applied. The two tests that depend on the schema also apply any pending migration themselves in `beforeAll`, so the `db` CI job works from an empty database.
+
 ## API environment variables
 
 Every variable is read once, in `apps/api/src/config`, and validated at start. The API refuses to boot on a missing or malformed value and names the variable, never its value. `apps/api/.env.example` has the same list with local values.
