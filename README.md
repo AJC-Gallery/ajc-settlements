@@ -27,6 +27,15 @@ Work inside WSL2 (Ubuntu), with the repo cloned into the Linux filesystem (`~/co
 
 The API reads only the process environment and loads no `.env` file itself, which is why step 3 passes one.
 
+## Database migrations
+
+Migrations are compiled with the API and run by a small command, as the role `ajc_migrator` only (it refuses any other role).
+
+- `pnpm --filter @ajc/api db:migrate` applies every pending migration. It is safe to run twice.
+- `pnpm --filter @ajc/api db:migrate:revert` reverts the last one. Add `-- --all` to revert every migration.
+
+Both read `MIGRATOR_DATABASE_URL` from the environment or from `apps/api/.env`. The running API never reads it. A migration is a file `src/migrations/<timestamp>-<name>.ts` with a why-header and a working `down()`, registered in `src/migrations/index.ts`.
+
 ## API environment variables
 
 Every variable is read once, in `apps/api/src/config`, and validated at start. The API refuses to boot on a missing or malformed value and names the variable, never its value. `apps/api/.env.example` has the same list with local values.
