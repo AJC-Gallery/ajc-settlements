@@ -7,14 +7,16 @@ import { ErrorFilter } from "./error.filter.js";
 import { corsOptions } from "./http-options.js";
 import type { Logger } from "./logger.js";
 import { generateRequestId } from "./request-id.js";
+import { createProxyProbe } from "./proxy-probe.middleware.js";
 import { createRequestIdMiddleware } from "./request-id.middleware.js";
-
 /** Every global setting in one place, so main.ts stays bootstrap only. */
 export function configureApp(app: NestExpressApplication, config: AppConfig, logger: Logger): void {
   // The exact hop count from config, never `true` (P-07).
   app.set("trust proxy", config.trustProxyHops);
   app.use(helmet());
   app.use(createRequestIdMiddleware(generateRequestId));
+  // Debug only: counts and classes, never addresses. Used once to prove TRUST_PROXY_HOPS (D-004).
+  app.use(createProxyProbe(logger));
   app.enableCors(corsOptions(config.allowedOrigins));
   app.setGlobalPrefix(API_PREFIX);
   app.useGlobalFilters(new ErrorFilter(logger, generateRequestId));
