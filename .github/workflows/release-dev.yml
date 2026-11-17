@@ -1,7 +1,7 @@
 name: release-dev
 
 # After ci passes on main: deploy that exact commit to the dev API, then smoke test it.
-# The migration step is added here, before the deploy, when the backend adds its migrate script.
+# The database is migrated first (as ajc_migrator, direct host), then the API is deployed.
 on:
   workflow_run:
     workflows: [ci]
@@ -26,6 +26,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Migrate the dev database
+        env:
+          MIGRATOR_DATABASE_URL: ${{ secrets.MIGRATOR_DATABASE_URL }}
+        run: pnpm --filter @ajc/api db:migrate
       - name: Ask Render to deploy this commit
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}

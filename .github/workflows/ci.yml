@@ -109,6 +109,18 @@ jobs:
           psql "postgres://postgres:postgres@localhost:5432/ajc_settlements" \
             -v ON_ERROR_STOP=1 -v migrator_password=ajc_migrator_ci -v app_password=ajc_app_ci \
             -f scripts/db/bootstrap-roles.sql
+      - name: Migrate up, down, up again, and compare the schema
+        run: |
+          set -euo pipefail
+          fp() { psql "$MIGRATOR_DATABASE_URL" -At -v ON_ERROR_STOP=1 -f scripts/db/schema-fingerprint.sql; }
+          pnpm --filter @ajc/api db:migrate
+          first="$(fp)"
+          pnpm --filter @ajc/api db:migrate:revert -- --all
+          pnpm --filter @ajc/api db:migrate
+          second="$(fp)"
+          echo "schema after first up:  $first"
+          echo "schema after down, up:  $second"
+          test "$first" = "$second"
       - run: pnpm test:db
 
   # Added by later directives, when the code exists to run them:
