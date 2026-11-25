@@ -1,6 +1,6 @@
 # Entry F-004
 Date: 2026-11-20 · Phase: 1 · Answers directive D-004 · PRs: #39 (web, merged)
-Status: draft
+Status: ready to send
 
 ## 1. Done since the last entry
 
@@ -8,10 +8,11 @@ Instruction report for D-004:
 
 | Instruction | Report |
 |---|---|
-| 1. `Secure` on the language cookie when the request is https | **Done.** The size and check output of PR #39 were not pasted (section 2). |
+| 1. `Secure` on the language cookie when the request is https | **Done.** |
 | 2. Compare the live site with the behaviour proved locally | **Done.** Every line matched; no difference found. |
 
 `Secure` on the language cookie (PR #39, commit 3bbac8b · evidence: `git log --oneline -3 -- apps/web/src/app/language` printed `3bbac8b feat(web): set Secure on the language cookie when the request is https (#39)` above `a5a8d5f feat(web): add the language switch and its route (#32)`):
+- Size and checks of PR #39: 54 additions and 2 deletions in 2 files (56 changed lines, under the S-10 limit of 400), merged 2026-11-11T08:51:43Z · evidence: `gh pr view 39 --json number,additions,deletions,changedFiles,mergedAt` printed `"additions": 54`, `"changedFiles": 2`, `"deletions": 2` and `"mergedAt": "2026-11-11T08:51:43Z"`; `gh pr checks 39` printed seven successes: Vercel, Vercel Preview Comments, ci/boundaries, ci/db, ci/static, ci/unit and ci/web.
 - Decided from the request alone, with no environment variable: the request URL's protocol first, then the first value of `x-forwarded-proto`. Plain http gets no `Secure`. Only `route.ts` and `route.spec.ts` changed.
 - The three acceptance tests, plus four more · evidence: `route.spec.ts (17 tests)` passed in the pasted full run (10 existing, 7 new): "does set Secure when the request URL is https", "does not set Secure when the request is plain http", "does set Secure when an http URL arrives with x-forwarded-proto https", "does not set Secure when x-forwarded-proto says http", "does read the first value when x-forwarded-proto lists several", "does keep the other attributes when Secure is set", "does send no cookie, and so no Secure, when the form is rejected".
 - Full gate on main after the merge (commit 0416933) · evidence: `pnpm verify` printed typecheck for contracts, api and web, `eslint .` with no output, "no dependency violations found (123 modules, 209 dependencies cruised)", "guards: ok", 37 test files with 444 tests passing, and builds of contracts, api and web, with the route table `┌ ○ /_not-found`, `├ /[locale]`, `│ ├ ● /en`, `│ └ ● /fr`, `├ ƒ /language`, `└ ƒ /worlds/[worldId]` and `ƒ Proxy (Middleware)`.
@@ -42,7 +43,7 @@ Live site compared with the local proofs (D-004 instruction 2 · evidence: the o
 
 ## 2. Not verified
 
-- **The size and check results of PR #39.** The owner's `gh pr view N` ran with the literal letter N, so nothing was printed; the PR was merged and its commit is on main, so I know it passed the required checks, but I have not seen the output. The local `pnpm verify` of the branch before its commit was not pasted either; the full run on main afterwards covers the combined state.
+- **The local `pnpm verify` of PR #39's branch before its commit** was not pasted; the full run on main afterwards (444 tests) covers the combined state.
 - **Browser behaviour.** The owner reports that the language switch changes the language in a real browser. That is the owner's own observation; I have no output behind it, and I did not see the form submit, the cookie stored with `Secure`, or the `Referer` header a browser sends. Everything above was checked with `curl`.
 - **Which commit the live site was built from.** The Vercel deployment id and its commit were not recorded. The `Secure` cookie shows the change is live; it does not show that the deployment matches the latest main.
 - **A hung response body under a real fetch,** and **Next resolving the compiled contracts in the web bundle.** Unchanged from F-003: the second arrives with the first screen that uses the client.
@@ -77,7 +78,12 @@ Live site compared with the local proofs (D-004 instruction 2 · evidence: the o
 
 ## 8. Owner's notes (written by you)
 
-- 
+- Vercel is live on dev.ajc-gallery.com: / returns 307 and the API 404 envelope comes through the rewrite. I ran the curl checks on 2026-11-11 and 2026-11-20.
+- I tried the language switch in a real browser on dev.ajc-gallery.com and the language changed.
+- Secure on the language cookie: I accept the controlling agent's ruling in D-004 (option A).
+- Lint plugin for Next: stays deferred until the design directive.
+- Backend work: finished on my side; its entries go to the controlling agent separately.
+- Nothing else to add.
 
 ---
 
@@ -369,4 +375,4 @@ Review of record for C-002 · evidence: the five changed or new files as pasted.
 - Lint plugin for Next: stays deferred until the design directive.
 - Note: the Render Health Check Path has been changed to /api/v1/health/live since this entry was drafted, and the dev API now serves /api/v1/health/live (backend 2b-1, live on dev).
 - Fresh-clone check: result pasted to the frontend chat separately..
--
+-NOTHING TO ADD
