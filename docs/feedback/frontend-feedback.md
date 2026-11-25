@@ -1,3 +1,92 @@
+# Entry F-004
+Date: 2026-11-20 · Phase: 1 · Answers directive D-004 · PRs: #39 (web, merged)
+Status: ready to send
+
+## 1. Done since the last entry
+
+Instruction report for D-004:
+
+| Instruction | Report |
+|---|---|
+| 1. `Secure` on the language cookie when the request is https | **Done.** |
+| 2. Compare the live site with the behaviour proved locally | **Done.** Every line matched; no difference found. |
+
+`Secure` on the language cookie (PR #39, commit 3bbac8b · evidence: `git log --oneline -3 -- apps/web/src/app/language` printed `3bbac8b feat(web): set Secure on the language cookie when the request is https (#39)` above `a5a8d5f feat(web): add the language switch and its route (#32)`):
+- Size and checks of PR #39: 54 additions and 2 deletions in 2 files (56 changed lines, under the S-10 limit of 400), merged 2026-11-11T08:51:43Z · evidence: `gh pr view 39 --json number,additions,deletions,changedFiles,mergedAt` printed `"additions": 54`, `"changedFiles": 2`, `"deletions": 2` and `"mergedAt": "2026-11-11T08:51:43Z"`; `gh pr checks 39` printed seven successes: Vercel, Vercel Preview Comments, ci/boundaries, ci/db, ci/static, ci/unit and ci/web.
+- Decided from the request alone, with no environment variable: the request URL's protocol first, then the first value of `x-forwarded-proto`. Plain http gets no `Secure`. Only `route.ts` and `route.spec.ts` changed.
+- The three acceptance tests, plus four more · evidence: `route.spec.ts (17 tests)` passed in the pasted full run (10 existing, 7 new): "does set Secure when the request URL is https", "does not set Secure when the request is plain http", "does set Secure when an http URL arrives with x-forwarded-proto https", "does not set Secure when x-forwarded-proto says http", "does read the first value when x-forwarded-proto lists several", "does keep the other attributes when Secure is set", "does send no cookie, and so no Secure, when the form is rejected".
+- Full gate on main after the merge (commit 0416933) · evidence: `pnpm verify` printed typecheck for contracts, api and web, `eslint .` with no output, "no dependency violations found (123 modules, 209 dependencies cruised)", "guards: ok", 37 test files with 444 tests passing, and builds of contracts, api and web, with the route table `┌ ○ /_not-found`, `├ /[locale]`, `│ ├ ● /en`, `│ └ ● /fr`, `├ ƒ /language`, `└ ƒ /worlds/[worldId]` and `ƒ Proxy (Middleware)`.
+- The cookie on the live site, before and after · evidence: on 2026-11-11, `curl -sS -i -X POST -d 'locale=fr' -H 'referer: https://dev.ajc-gallery.com/en' https://dev.ajc-gallery.com/language` printed `303`, `location: https://dev.ajc-gallery.com/fr` and `set-cookie: ajc_language=fr; Path=/; Expires=Thu, 11 Nov 2027 08:38:52 GMT; Max-Age=31536000; SameSite=lax`, with no `Secure`. The same command on 2026-11-20 printed `303`, the same `location` and `set-cookie: ajc_language=fr; Path=/; Expires=Sat, 20 Nov 2027 16:05:55 GMT; Max-Age=31536000; Secure; SameSite=lax`.
+
+Live site compared with the local proofs (D-004 instruction 2 · evidence: the owner's `curl` output against https://dev.ajc-gallery.com on 2026-11-20; "local" is the pasted output of F-003's checks):
+
+| Check | Local proof | Live result |
+|---|---|---|
+| `/` with no headers | 307 to `/en` | `307 -> https://dev.ajc-gallery.com/en` |
+| `/` with browser French | 307 to `/fr` | `307 -> https://dev.ajc-gallery.com/fr` |
+| `/` with cookie French, browser English | 307 to `/fr` | `307 -> https://dev.ajc-gallery.com/fr` |
+| `/` with cookie `de`, browser French | 307 to `/fr` | `307 -> https://dev.ajc-gallery.com/fr` |
+| `/en` | `lang="en"`, heading, "Main navigation" | `<html lang="en">`, `<h1>AJC Settlements</h1>`, `aria-label="Main navigation"`, `aria-label="Language"` |
+| `/fr` | `lang="fr"`, French paragraph, "Navigation principale" | `<html lang="fr">`, the French paragraph, `aria-label="Navigation principale"`, `aria-label="Langue"` |
+| `/de` | 404 | `404` |
+| `/worlds/abc`, browser French | `lang="fr"`, `Aperçu` | `<html lang="fr">`, `<h1>Aperçu</h1>` |
+| `/worlds/abc`, cookie English, browser French | `lang="en"`, `Overview` | `<html lang="en">`, `<h1>Overview</h1>` |
+| POST `/language` from `/worlds/abc` | 303 back to the page | `303`, `location: https://dev.ajc-gallery.com/worlds/abc` |
+| POST with `locale=de` | 400 | `400` |
+| GET `/language` | 405 | `405` |
+| POST from `/en` with `locale=fr` | 303 to `/fr`, cookie without `Secure` over http | `303` to `https://dev.ajc-gallery.com/fr`, cookie now with `Secure` |
+| `/api/v1/does-not-exist` through the rewrite | the API's 404 | `404`, `x-request-id: 8c206305-2743-478f-89a6-af07427927a2`, body `{"code":"NOT_FOUND","message":"Not found","details":null,"requestId":"8c206305-2743-478f-89a6-af07427927a2"}` |
+
+- The four requests to `/` with different headers returned four consistent, different answers for the same URL, so no cross-visitor caching was seen on the redirect.
+- The API 404 through the rewrite is the full envelope, and its `requestId` equals the `x-request-id` header. The same held on 2026-11-11 (`requestId` 31c2e5b1-c663-42af-8802-2c9439c5da9e) · evidence: the two `curl` outputs. This also evidences the G1-F rewrite check (D-004 section 6). The other G1-F conditions are the app being on `dev.ajc-gallery.com` (the pasted responses) and the `web` check being green and required (D-004 states it); the ruling that the gate closes is the controller's.
+- Rulings from D-004 acknowledged, no change needed: the timeout deviation is accepted; the lint plugin stays deferred; the 404 page and the missing-`Referer` fallback wait for the design directive.
+
+## 2. Not verified
+
+- **The local `pnpm verify` of PR #39's branch before its commit** was not pasted; the full run on main afterwards (444 tests) covers the combined state.
+- **Browser behaviour.** The owner reports that the language switch changes the language in a real browser. That is the owner's own observation; I have no output behind it, and I did not see the form submit, the cookie stored with `Secure`, or the `Referer` header a browser sends. Everything above was checked with `curl`.
+- **Which commit the live site was built from.** The Vercel deployment id and its commit were not recorded. The `Secure` cookie shows the change is live; it does not show that the deployment matches the latest main.
+- **A hung response body under a real fetch,** and **Next resolving the compiled contracts in the web bundle.** Unchanged from F-003: the second arrives with the first screen that uses the client.
+- **Sandbox-only evidence (Node 22; a minimal project with the language constants, the route handler and its tests, not the repository):** three mutation checks on the `Secure` code (never set, forwarded header ignored, always set), each failing the intended tests; and a real production server showing a cookie without `Secure` over http, with `Secure` when `x-forwarded-proto: https`, without it when `x-forwarded-proto: http`, and no cookie on a rejected form.
+- **`Secure` on plain http in a real browser** (local development): not tried.
+- **Accessibility, Core Web Vitals, bundle size and any viewport check:** not measured; the pages are still unstyled (D-001A).
+- **French wording** is mine and unreviewed.
+
+## 3. Blocked or decision needed
+
+- None. The lint plugin for Next stays deferred to the design directive; my recommendation (`@next/eslint-plugin-next` plus `eslint-plugin-react-hooks`, not `eslint-config-next`) is unchanged.
+
+## 4. Proposed contract changes
+
+- None new. The items in F-003 section 4 stand: a shared `Locale` constant and the person's language preference with identity, the `Permission` name union, the sign-in and refresh path constants, and the later change that makes `constraints` required.
+
+## 5. Needs from the other agent
+
+- Unchanged from F-003, except that the Vercel project is no longer outstanding: the auth contract (sign-in, sign-up and refresh endpoints and types, the path constants, the status of a failed refresh); constraint names for upload errors before the asset form; and the person's language preference with identity.
+- Nothing is queued on the frontend. Sign-in and sign-up screens wait for the auth contract, and design waits for the owner's new design (D-001A).
+
+## 6. Rule conflicts and waiver requests
+
+- None.
+
+## 7. Risks noticed
+
+- **`x-forwarded-proto` is read from the request.** A client can send `x-forwarded-proto: https` over plain http and get a `Secure` cookie that its own browser refuses to store, so the effect is limited to that client's own language choice. Likelihood: low; impact: none beyond that client.
+- **The redirect from `/` depends on `Vary: Cookie, Accept-Language`.** The live site sent `cache-control: public, max-age=0, must-revalidate` with that `Vary`, and the four-request test shows it is respected. If a cache in front of the site ever ignored `Vary`, one visitor's language redirect could be served to another. Not seen; the live check above is the evidence.
+- **Unchanged from F-003:** the language switch returns to the page through the `Referer` header, so a browser that sends none lands on the public home in the new language; public pages exist only under `/en` and `/fr`; unknown URLs show Next's built-in 404 page; a refresh and its retry share one 30-second budget.
+- The owner's `gh pr checks` on a backend PR (#47) showed seven checks, the five `ci/` jobs plus two from Vercel. The Vercel checks are new since the shell PRs. I do not know whether they are required.
+
+## 8. Owner's notes (written by you)
+
+- Vercel is live on dev.ajc-gallery.com: / returns 307 and the API 404 envelope comes through the rewrite. I ran the curl checks on 2026-11-11 and 2026-11-20.
+- I tried the language switch in a real browser on dev.ajc-gallery.com and the language changed.
+- Secure on the language cookie: I accept the controlling agent's ruling in D-004 (option A).
+- Lint plugin for Next: stays deferred until the design directive.
+- Backend work: finished on my side; its entries go to the controlling agent separately.
+- Nothing else to add.
+
+---
+
 # Entry F-003
 Date: 2026-11-09 · Phase: 1 · Answers directive D-003 · PRs: #27, #28, #32, #35 (web, all merged)
 Status: ready to send
@@ -286,4 +375,4 @@ Review of record for C-002 · evidence: the five changed or new files as pasted.
 - Lint plugin for Next: stays deferred until the design directive.
 - Note: the Render Health Check Path has been changed to /api/v1/health/live since this entry was drafted, and the dev API now serves /api/v1/health/live (backend 2b-1, live on dev).
 - Fresh-clone check: result pasted to the frontend chat separately..
--
+-NOTHING TO ADD
